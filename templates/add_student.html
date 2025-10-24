@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Öğrenci Ekle • Help Team</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body{background:#f6f8fb}
+    .glass{background:#fff;border:1px solid #e8ecf2;border-radius:14px;box-shadow:0 10px 30px rgba(13,110,253,.06)}
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg bg-dark navbar-dark">
+  <div class="container-xxl">
+    <a class="navbar-brand fw-semibold" href="{{ url_for('dashboard') }}"><i class="bi bi-grid-1x2-fill me-1"></i>Help Team</a>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('main_screen') }}" class="btn btn-outline-light btn-sm">Liste</a>
+      <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Çıkış</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container-xxl py-4">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-7">
+      <div class="glass p-4">
+        <h4 class="mb-3"><i class="bi bi-person-plus me-1"></i> Yeni Öğrenci</h4>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for cat, msg in messages %}
+              <div class="alert alert-{{ 'info' if cat not in ['success','danger','warning'] else cat }}">{{ msg }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="post" class="row g-3">
+          <div class="col-12">
+            <label class="form-label">İsim <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control" required>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Telefon</label>
+            <input type="text" name="phone" class="form-control" placeholder="5xx xxx xx xx">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Okul No</label>
+            <input type="text" name="school_no" class="form-control">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Fakülte</label>
+            <input type="text" name="faculty" id="facultyInput" class="form-control" list="facultyList" placeholder="Fakülte seç/yaz">
+            <datalist id="facultyList">
+              {% for fac in faculties.keys() %}<option value="{{ fac }}"></option>{% endfor %}
+            </datalist>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Bölüm</label>
+            <input type="text" name="department" id="departmentInput" class="form-control" list="departmentList" placeholder="Bölüm seç/yaz">
+            <datalist id="departmentList"></datalist>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Durum</label>
+            <select name="status" class="form-select">
+              <option value="cozulmedi" selected>Çözülmedi</option>
+              <option value="cozuldu">Çözüldü</option>
+            </select>
+          </div>
+
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary"><i class="bi bi-save me-1"></i> Kaydet</button>
+            <a class="btn btn-secondary" href="{{ url_for('dashboard') }}">Vazgeç</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const FACULTY_DEPARTMENTS = {{ faculties | tojson }};
+  const facIn = document.getElementById('facultyInput');
+  const depList = document.getElementById('departmentList');
+  function refreshDepList(fac){
+    depList.innerHTML="";
+    if(fac && FACULTY_DEPARTMENTS[fac]){
+      FACULTY_DEPARTMENTS[fac].forEach(d=>{
+        const o=document.createElement('option'); o.value=d; depList.appendChild(o);
+      });
+    }
+  }
+  facIn.addEventListener('input', e=> refreshDepList(e.target.value));
+</script>
+</body>
+</html>
