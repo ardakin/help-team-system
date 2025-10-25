@@ -1,32 +1,54 @@
 import os
 from datetime import datetime
 
-from dotenv import load_dotenv
-from flask import (
-    Flask, render_template, request, redirect, url_for, flash, abort
-)
+from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
-    LoginManager, UserMixin, login_user, login_required,
-    logout_user, current_user
+    LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 )
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired
-from sqlalchemy import text, func, or_
-from sqlalchemy.exc import DataError, ProgrammingError
+from sqlalchemy import text, inspect, func, or_
 from werkzeug.security import check_password_hash, generate_password_hash
+from dotenv import load_dotenv
 
-# -------------------------------------------------------------------
-# 0) ENV + Fakülte/Bölüm sözlüğü
-# -------------------------------------------------------------------
+# -------------------------------
+# Ortam değişkenleri
+# -------------------------------
 load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///students.db")
+INIT_TOKEN = os.getenv("INIT_TOKEN", "help-team-system-123")  # << sen verdiğin token
 
+# Railway 'postgres://' -> 'postgresql+psycopg2://'
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+
+# -------------------------------
+# Flask ve DB
+# -------------------------------
+app = Flask(__name__)
+app.config["SECRET_KEY"] = SECRET_KEY
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+login_manager = LoginManager(app)
+login_manager.login_view = "login"
+
+
+# -------------------------------
+# Fakülte -> Bölümler (select için)
+# -------------------------------
 FACULTY_DEPARTMENTS = {
     "Tıp Fakültesi": ["TIP"],
     "Diş Hekimliği Fakültesi": ["DİŞ HEKİMLİĞİ"],
     "İktisadi, İdari ve Sosyal Bilimler Fakültesi": [
-        "EKONOMİ", "EKONOMİ VE FİNANS", "FİNANS VE BANKACILIK",
+        "EKONOMİ",
+        "EKONOMİ VE FİNANS",
+        "FİNANS VE BANKACILIK",
         "HALKLA İLİŞKİLER VE REKLAMCILIK",
         "HAVACILIK YÖNETİMİ (TÜRKÇE-İNGİLİZCE)",
         "İNGİLİZ DİLİ VE EDEBİYATI (İNGİLİZCE)",
@@ -36,7 +58,9 @@ FACULTY_DEPARTMENTS = {
         "SİYASET BİLİMİ VE KAMU YÖNETİMİ",
         "MUHASEBE VE FİNANS YÖNETİMİ",
         "SERMAYE PİYASASI",
-        "SOSYAL HİZMET", "SOSYOLOJİ", "TURİZM İŞLETMECİLİĞİ",
+        "SOSYAL HİZMET",
+        "SOSYOLOJİ",
+        "TURİZM İŞLETMECİLİĞİ",
         "ULUSLARARASI İLİŞKİLER",
         "ULUSLARARASI TİCARET VE LOJİSTİK",
         "YENİ MEDYA VE İLETİŞİM",
@@ -53,147 +77,173 @@ FACULTY_DEPARTMENTS = {
         "MAKİNE MÜHENDİSLİĞİ (İNGİLİZCE)",
     ],
     "Sanat ve Tasarım Fakültesi": [
-        "DİJİTAL OYUN TASARIMI", "ENDÜSTRİYEL TASARIM",
+        "DİJİTAL OYUN TASARIMI",
+        "ENDÜSTRİYEL TASARIM",
         "GASTRONOMİ VE MUTFAK SANATLARI (TÜRKÇE - İNGİLİZCE)",
-        "GRAFİK TASARIMI", "İLETİŞİM VE TASARIMI",
+        "GRAFİK TASARIMI",
+        "İLETİŞİM VE TASARIMI",
         "RADYO, TELEVİZYON VE SİNEMA",
-        "Tekstil ve Moda Tasarımı", "İÇ MİMARLIK (TÜRKÇE-İNGİLİZCE)",
+        "Tekstil ve Moda Tasarımı",
+        "İÇ MİMARLIK (TÜRKÇE-İNGİLİZCE)",
     ],
     "Konservatuvar": ["MÜZİK", "SAHNE SANATLARI"],
     "Beden Eğitimi ve Spor Yüksekokulu": [
-        "ANTRENÖRLÜK EĞİTİMİ", "EGZERSİZ VE SPOR BİLİMLERİ",
-        "REKREASYON", "SPOR YÖNETİCİLİĞİ",
+        "ANTRENÖRLÜK EĞİTİMİ",
+        "EGZERSİZ VE SPOR BİLİMLERİ",
+        "REKREASYON",
+        "SPOR YÖNETİCİLİĞİ",
     ],
     "Sivil Havacılık Yüksekokulu": [
-        "HAVA TRAFİK KONTROLÜ", "HAVACILIK ELEKTRİK VE ELEKTRONİĞİ",
-        "PİLOTAJ (İNGİLİZCE)", "UÇAK BAKIM VE ONARIM",
+        "HAVA TRAFİK KONTROLÜ",
+        "HAVACILIK ELEKTRİK VE ELEKTRONİĞİ",
+        "PİLOTAJ (İNGİLİZCE)",
+        "UÇAK BAKIM VE ONARIM",
     ],
     "Uygulamalı Bilimler Yüksekokulu": [
         "BİLİŞİM SİSTEMLERİ VE TEKNOLOJİLERİ",
-        "TURİZM REHBERLİĞİ", "ULUSLARARASI TİCARET VE İŞLETMECİLİK",
-        "VERİ BİLİMİ VE ANALİTİĞİ", "YAZILIM GELİŞTİRME",
+        "TURİZM REHBERLİĞİ",
+        "ULUSLARARASI TİCARET VE İŞLETMECİLİK",
+        "VERİ BİLİMİ VE ANALİTİĞİ",
+        "YAZILIM GELİŞTİRME",
     ],
     "Sağlık Bilimleri Fakültesi": [
-        "BESLENME VE DİYETETİK", "DİL VE KONUŞMA TERAPİSİ",
-        "FİZYOTERAPİ VE REHABİLİTASYON", "HEMŞİRELİK", "EBELİK",
+        "BESLENME VE DİYETETİK",
+        "DİL VE KONUŞMA TERAPİSİ",
+        "FİZYOTERAPİ VE REHABİLİTASYON",
+        "HEMŞİRELİK",
+        "EBELİK",
     ],
     "Meslek Yüksekokulu": [
-        "AŞÇILIK", "BANKACILIK VE SİGORTACILIK",
-        "BİLGİSAYAR PROGRAMCILIĞI", "DENİZ ULAŞTIRMA VE İŞLETME",
-        "DIŞ TİCARET", "ELEKTRİK", "FOTOĞRAFÇILIK VE KAMERAMANLIK",
-        "GRAFİK TASARIMI", "HALKLA İLİŞKİLER VE TANITIM",
-        "İÇ MEKAN TASARIMI", "İNŞAAT TEKNOLOJİSİ",
-        "İŞLETME YÖNETİMİ", "LOJİSTİK PROGRAMI", "MAKİNE",
-        "MEKATRONİK", "Mobil Teknolojileri", "MİMARİ RESTORASYON",
-        "MODA TASARIMI", "MUHASEBE VE VERGİ UYGULAMALARI",
-        "Otomotiv Teknolojisi", "RADYO VE TELEVİZYON PROGRAMCILIĞI",
+        "AŞÇILIK",
+        "BANKACILIK VE SİGORTACILIK",
+        "BİLGİSAYAR PROGRAMCILIĞI",
+        "DENİZ ULAŞTIRMA VE İŞLETME",
+        "DIŞ TİCARET",
+        "ELEKTRİK",
+        "FOTOĞRAFÇILIK VE KAMERAMANLIK",
+        "GRAFİK TASARIMI",
+        "HALKLA İLİŞKİLER VE TANITIM",
+        "İÇ MEKAN TASARIMI",
+        "İNŞAAT TEKNOLOJİSİ",
+        "İŞLETME YÖNETİMİ",
+        "LOJİSTİK PROGRAMI",
+        "MAKİNE",
+        "MEKATRONİK",
+        "Mobil Teknolojileri",
+        "MİMARİ RESTORASYON",
+        "MODA TASARIMI",
+        "MUHASEBE VE VERGİ UYGULAMALARI",
+        "Otomotiv Teknolojisi",
+        "RADYO VE TELEVİZYON PROGRAMCILIĞI",
         "SİVİL HAVA ULAŞTIRMA İŞLETMECİLİĞİ",
         "SİVİL HAVACILIK KABİN HİZMETLERİ",
-        "SPOR YÖNETİMİ", "TURİST REHBERLİĞİ",
+        "SPOR YÖNETİMİ",
+        "TURİST REHBERLİĞİ",
         "TURİZM VE OTEL İŞLETMECİLİĞİ",
-        "Uçak Teknolojisi", "ELEKTRONİK TEKNOLOJİSİ",
-        "İNSANSIZ ARAÇ TEKNİKERLİĞİ", "MARINA VE YAT İŞLETMECİLİĞİ",
-        "WEB TASARIMI VE KODLAMA", "YEŞİL VE EKOLOJİK BİNA TEKNİKERLİĞİ",
-        "MAHKEME BÜRO HİZMETLERİ", "İNTERNET VE AĞ TEKNOLOJİLERİ",
+        "Uçak Teknolojisi",
+        "ELEKTRONİK TEKNOLOJİSİ",
+        "İNSANSIZ ARAÇ TEKNİKERLİĞİ",
+        "MARINA VE YAT İŞLETMECİLİĞİ",
+        "WEB TASARIMI VE KODLAMA",
+        "YEŞİL VE EKOLOJİK BİNA TEKNİKERLİĞİ",
+        "MAHKEME BÜRO HİZMETLERİ",
+        "İNTERNET VE AĞ TEKNOLOJİLERİ",
     ],
     "Sağlık Hizmetleri Meslek Yüksekokulu": [
-        "AĞIZ VE DİŞ SAĞLIĞI", "AMELİYATHANE HİZMETLERİ", "ANESTEZİ",
-        "ÇOCUK GELİŞİMİ", "DİŞ PROTEZ TEKNOLOJİSİ", "DİYALİZ",
-        "ECZANE HİZMETLERİ", "ELEKTRONÖROFİZYOLOJİ", "FİZYOTERAPİ",
-        "İLK VE ACİL YARDIM", "İŞ SAĞLIĞI VE GÜVENLİĞİ", "ODYOMETRİ",
-        "OPTİSYENLİK", "ORTOPEDİK PROTEZ VE ORTEZ",
-        "PATOLOJİ LABORATUVAR TEKNİKLERİ", "RADYOTERAPİ",
-        "SOSYAL HİZMETLER", "TIBBİ DOKÜMANTASYON VE SEKRETERLİK",
-        "TIBBİ GÖRÜNTÜLEME TEKNİKLERİ", "TIBBİ LABORATUVAR TEKNİKLERİ",
-        "TIBBİ VERİ İŞLEME TEKNİKERLİĞİ", "DİJİTAL SAĞLIK SİSTEMLERİ TEKNİKERLİĞİ",
+        "AĞIZ VE DİŞ SAĞLIĞI",
+        "AMELİYATHANE HİZMETLERİ",
+        "ANESTEZİ",
+        "ÇOCUK GELİŞİMİ",
+        "DİŞ PROTEZ TEKNOLOJİSİ",
+        "DİYALİZ",
+        "ECZANE HİZMETLERİ",
+        "ELEKTRONÖROFİZYOLOJİ",
+        "FİZYOTERAPİ",
+        "İLK VE ACİL YARDIM",
+        "İŞ SAĞLIĞI VE GÜVENLİĞİ",
+        "ODYOMETRİ",
+        "OPTİSYENLİK",
+        "ORTOPEDİK PROTEZ VE ORTEZ",
+        "PATOLOJİ LABORATUVAR TEKNİKLERİ",
+        "RADYOTERAPİ",
+        "SOSYAL HİZMETLER",
+        "TIBBİ DOKÜMANTASYON VE SEKRETERLİK",
+        "TIBBİ GÖRÜNTÜLEME TEKNİKLERİ",
+        "TIBBİ LABORATUVAR TEKNİKLERİ",
+        "TIBBİ VERİ İŞLEME TEKNİKERLİĞİ",
+        "DİJİTAL SAĞLIK SİSTEMLERİ TEKNİKERLİĞİ",
         "BİYOMEDİKAL CİHAZ TEKNOLOJİLERİ",
     ],
 }
 
-# -------------------------------------------------------------------
-# 1) APP + DB + LOGIN
-# -------------------------------------------------------------------
-app = Flask(__name__)
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret")
 
-uri = os.getenv("DATABASE_URL", "sqlite:///students.db")
-# Render gibi ortamlarda eski "postgres://" gelebilir → normalize et
-if uri.startswith("postgres://"):
-    uri = uri.replace("postgres://", "postgresql+psycopg2://", 1)
-
-app.config["SQLALCHEMY_DATABASE_URI"] = uri
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-db = SQLAlchemy(app)
-
-login_manager = LoginManager(app)
-login_manager.login_view = "login"
-
-INIT_TOKEN = os.getenv("INIT_TOKEN", "dev-token")  # /__migrate_pwlen ve /__init_db için
-
-
-# -------------------------------------------------------------------
-# 2) MODELLER
-# -------------------------------------------------------------------
+# -------------------------------
+# Modeller
+# -------------------------------
 class User(UserMixin, db.Model):
     __tablename__ = "users"
-    id       = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    # UZUN HASH'LER İÇİN TEXT: scrypt/argon vs rahat sığar.
+    # Parolayı TEXT tuttuk -> Railway PG'de 150 limit hatası yaşamayalım
     password = db.Column(db.Text, nullable=False)
 
 
 class Student(db.Model):
     __tablename__ = "student"
-    id         = db.Column(db.Integer, primary_key=True)
-    name       = db.Column(db.String(150), nullable=False)
-    phone      = db.Column(db.String(20))
-    school_no  = db.Column(db.String(20))
-    added_by   = db.Column(db.String(150))
-    status     = db.Column(db.String(20), default="cozulmedi")  # cozuldu / cozulmedi
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    phone = db.Column(db.String(30))
+    school_no = db.Column(db.String(30))
+    added_by = db.Column(db.String(80))
+    status = db.Column(db.String(20), default="cozulmedi")  # 'cozuldu' | 'cozulmedi'
     department = db.Column(db.String(200))  # Bölüm
-    faculty    = db.Column(db.String(200))  # Fakülte
-
+    faculty = db.Column(db.String(200))  # Fakülte
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class StudentNote(db.Model):
     __tablename__ = "student_note"
-    id         = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
-    text       = db.Column(db.Text, nullable=False)
-    author     = db.Column(db.String(150))
+    text = db.Column(db.Text, nullable=False)
+    author = db.Column(db.String(80))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+# -------------------------------
+# Login Manager
+# -------------------------------
 @login_manager.user_loader
-def load_user(user_id: str):
-    # SQLAlchemy 2.0 stili:
-    return db.session.get(User, int(user_id))
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 
-# -------------------------------------------------------------------
-# 3) FORMLAR
-# -------------------------------------------------------------------
+# -------------------------------
+# Formlar
+# -------------------------------
 class LoginForm(FlaskForm):
+    # Şimdilik CSRF'yi kapatıyoruz ki şablon eksikse bile sorun olmasın
+    class Meta:
+        csrf = False
+
     username = StringField("Kullanıcı Adı", validators=[DataRequired()])
     password = PasswordField("Şifre", validators=[DataRequired()])
-    submit   = SubmitField("Giriş Yap")
+    submit = SubmitField("Giriş Yap")
 
 
-# -------------------------------------------------------------------
-# 4) ROTALAR
-# -------------------------------------------------------------------
+# -------------------------------
+# Rotalar
+# -------------------------------
 @app.route("/", methods=["GET", "POST"])
 def login():
-    """Login ekranı (hem GET hem POST)."""
     form = LoginForm()
     if form.validate_on_submit():
         u = User.query.filter_by(username=form.username.data.strip()).first()
         if u and check_password_hash(u.password, form.password.data):
             login_user(u)
             return redirect(url_for("dashboard"))
-        flash("Kullanıcı adı veya şifre hatalı", "danger")
+        else:
+            flash("Kullanıcı adı veya şifre hatalı", "danger")
     return render_template("login.html", form=form)
-
 
 @app.route("/logout")
 @login_required
@@ -201,41 +251,49 @@ def logout():
     logout_user()
     return redirect(url_for("login"))
 
+@app.route("/health")
+def health():
+    return "OK", 200
+
+@app.route("/whoami")
+@login_required
+def whoami():
+    return f"✅ {current_user.username}", 200
+
 
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    """Liste + arama + filtre ekranı."""
-    q          = request.args.get("q", "").strip()
-    status     = request.args.get("status", "").strip()
+    q = request.args.get("q", "").strip()
+    status = request.args.get("status", "").strip()
     department = request.args.get("department", "").strip()
-    faculty    = request.args.get("faculty", "").strip()
-    added_by   = request.args.get("added_by", "").strip()
+    faculty = request.args.get("faculty", "").strip()
+    added_by = request.args.get("added_by", "").strip()
 
     query = Student.query
 
     if q:
+        like = f"%{q}%"
         query = query.filter(or_(
-            Student.name.ilike(f"%{q}%"),
-            Student.phone.ilike(f"%{q}%"),
-            Student.school_no.ilike(f"%{q}%"),
+            Student.name.ilike(like),
+            Student.phone.ilike(like),
+            Student.school_no.ilike(like),
         ))
+    if status in ("cozuldu", "cozulmedi"):
+        query = query.filter(Student.status == status)
     if department:
         query = query.filter(Student.department.ilike(f"%{department}%"))
     if faculty:
         query = query.filter(Student.faculty.ilike(f"%{faculty}%"))
-    if status in ("cozuldu", "cozulmedi"):
-        query = query.filter(Student.status == status)
     if added_by:
         query = query.filter(Student.added_by == added_by)
 
     students = query.order_by(Student.id.desc()).all()
 
     added_by_options = [
-        row[0] for row in (
-            db.session.query(Student.added_by)
-                      .distinct().order_by(Student.added_by.asc()).all()
-        ) if row[0]
+        row[0] for row in db.session.query(Student.added_by)
+        .distinct().order_by(Student.added_by.asc()).all()
+        if row[0]
     ]
 
     return render_template(
@@ -246,31 +304,29 @@ def dashboard():
         faculties=FACULTY_DEPARTMENTS
     )
 
-
 @app.route("/add", methods=["GET", "POST"])
 @login_required
 def add_student():
-    """Öğrenci ekleme."""
     if request.method == "POST":
-        name       = request.form.get("name", "").strip()
-        phone      = request.form.get("phone", "").strip()
-        school_no  = request.form.get("school_no", "").strip()
-        status     = request.form.get("status", "cozulmedi").strip()
-        department = request.form.get("department", "").strip()
-        faculty    = request.form.get("faculty", "").strip()
+        name = (request.form.get("name") or "").strip()
+        phone = (request.form.get("phone") or "").strip()
+        school_no = (request.form.get("school_no") or "").strip()
+        department = (request.form.get("department") or "").strip()
+        faculty = (request.form.get("faculty") or "").strip()
+        status = request.form.get("status", "cozulmedi")
 
         if not name:
-            flash("İsim zorunludur.", "danger")
+            flash("İsim zorunlu.", "danger")
             return render_template("add_student.html", faculties=FACULTY_DEPARTMENTS)
 
         s = Student(
             name=name,
             phone=phone or None,
             school_no=school_no or None,
-            added_by=current_user.username,
-            status=status if status in ("cozuldu", "cozulmedi") else "cozulmedi",
             department=department or None,
-            faculty=faculty or None
+            faculty=faculty or None,
+            status=status if status in ("cozuldu", "cozulmedi") else "cozulmedi",
+            added_by=current_user.username,
         )
         db.session.add(s)
         db.session.commit()
@@ -279,168 +335,141 @@ def add_student():
 
     return render_template("add_student.html", faculties=FACULTY_DEPARTMENTS)
 
-
-@app.route("/student/<int:student_id>", methods=["GET", "POST"])
+@app.route("/student/<int:id>")
 @login_required
-def view_student(student_id: int):
-    """Öğrenci detay + not ekle + durum güncelle."""
-    s = db.session.get(Student, student_id) or abort(404)
-
-    if request.method == "POST":
-        note_text = request.form.get("note", "").strip()
-        new_status = request.form.get("status", "").strip()
-
-        if note_text:
-            n = StudentNote(student_id=student_id, text=note_text,
-                            author=current_user.username)
-            db.session.add(n)
-
-        if new_status in ("cozuldu", "cozulmedi"):
-            s.status = new_status
-
-        db.session.commit()
-        flash("Detay güncellendi.", "success")
-        return redirect(url_for("view_student", student_id=student_id))
-
-    notes = (StudentNote.query
-             .filter_by(student_id=student_id)
-             .order_by(StudentNote.created_at.desc())
-             .all())
-
+def view_student(id):
+    s = Student.query.get_or_404(id)
+    notes = StudentNote.query.filter_by(student_id=id).order_by(StudentNote.created_at.desc()).all()
     return render_template("view_student.html", student=s, notes=notes)
 
-
-@app.route("/student/<int:student_id>/edit", methods=["GET", "POST"])
+@app.route("/student/<int:id>/edit", methods=["GET", "POST"])
 @login_required
-def edit_student(student_id: int):
-    """Öğrenci temel bilgileri düzenleme."""
-    s = db.session.get(Student, student_id) or abort(404)
-
+def edit_student(id):
+    s = Student.query.get_or_404(id)
     if request.method == "POST":
-        s.name       = request.form.get("name", s.name)
-        s.phone      = request.form.get("phone", s.phone)
-        s.school_no  = request.form.get("school_no", s.school_no)
+        s.name = request.form.get("name", s.name)
+        s.phone = request.form.get("phone", s.phone)
+        s.school_no = request.form.get("school_no", s.school_no)
         s.department = request.form.get("department", s.department)
-        s.faculty    = request.form.get("faculty", s.faculty)
-        new_status   = request.form.get("status", s.status)
-
+        s.faculty = request.form.get("faculty", s.faculty)
+        new_status = request.form.get("status", s.status)
         if new_status in ("cozuldu", "cozulmedi"):
             s.status = new_status
-
         db.session.commit()
-        flash("Öğrenci bilgileri güncellendi.", "success")
-        return redirect(url_for("view_student", student_id=student_id))
+        flash("Öğrenci güncellendi.", "success")
+        return redirect(url_for("view_student", id=id))
 
-    return render_template("edit_student.html", student=s,
-                           faculties=FACULTY_DEPARTMENTS)
+    return render_template("edit_student.html", student=s, faculties=FACULTY_DEPARTMENTS)
 
-
-@app.route("/student/<int:student_id>/delete", methods=["POST"])
+@app.route("/student/<int:id>/delete", methods=["POST"])
 @login_required
-def delete_student(student_id: int):
-    """Öğrenci silme."""
-    s = db.session.get(Student, student_id) or abort(404)
+def delete_student(id):
+    s = Student.query.get_or_404(id)
     db.session.delete(s)
     db.session.commit()
     flash("Öğrenci silindi.", "success")
     return redirect(url_for("dashboard"))
 
+@app.route("/student/<int:id>/note", methods=["POST"])
+@login_required
+def add_note(id):
+    s = Student.query.get_or_404(id)
+    note_text = (request.form.get("note") or "").strip()
+    new_status = (request.form.get("status") or "").strip()
+    if note_text:
+        n = StudentNote(student_id=id, text=note_text, author=current_user.username)
+        db.session.add(n)
+    if new_status in ("cozuldu", "cozulmedi"):
+        s.status = new_status
+    db.session.commit()
+    flash("Detay güncellendi.", "success")
+    return redirect(url_for("view_student", id=id))
 
 @app.route("/note/<int:note_id>/delete", methods=["POST"])
 @login_required
-def delete_note(note_id: int):
-    """Not silme (sadece yazan veya helpadmin)."""
-    n = db.session.get(StudentNote, note_id) or abort(404)
+def delete_note(note_id):
+    n = StudentNote.query.get_or_404(note_id)
     if n.author != current_user.username and current_user.username != "helpadmin":
         flash("Bu notu silme yetkin yok.", "danger")
-        return redirect(url_for("view_student", student_id=n.student_id))
-
+        return redirect(url_for("view_student", id=n.student_id))
     sid = n.student_id
     db.session.delete(n)
     db.session.commit()
     flash("Not silindi.", "success")
-    return redirect(url_for("view_student", student_id=sid))
-
+    return redirect(url_for("view_student", id=sid))
 
 @app.route("/main")
 @login_required
 def main_screen():
-    """Kimin kaç öğrenci eklediğine dair küçük özet."""
-    rows = (db.session.query(Student.added_by, func.count(Student.id))
-            .group_by(Student.added_by)
-            .order_by(func.count(Student.id).desc())
-            .all())
-
+    rows = db.session.query(Student.added_by, func.count(Student.id))\
+        .group_by(Student.added_by)\
+        .order_by(func.count(Student.id).desc())\
+        .all()
     total = db.session.query(func.count(Student.id)).scalar() or 0
     return render_template("main.html", rows=rows, total=total)
 
 
-# -------------------------------------------------------------------
-# 5) YÖNETİM / İLK KURULUM ENDPOINT'LERİ (token'lı)
-# -------------------------------------------------------------------
-@app.get("/__migrate_pwlen")
+# -------------------------------
+# Migration / bakım endpoint'leri
+# -------------------------------
+@app.route("/__migrate_pwlen")
 def migrate_pwlen():
-    """
-    Amaç: PostgreSQL'de users.password kolonunu TEXT'e büyütmek.
-    Kullanım: /__migrate_pwlen?token=<INIT_TOKEN>
-    """
-    token = request.args.get("token", "")
+    token = request.args.get("token")
     if token != INIT_TOKEN:
         abort(403)
 
-    # SQLite'ta ALTER TYPE yok; Postgres'te çalışır
-    if db.engine.url.get_backend_name().startswith("postgresql"):
-        sql = "ALTER TABLE users ALTER COLUMN password TYPE TEXT;"
-        try:
-            with db.engine.begin() as conn:
-                conn.execute(text(sql))
-        except ProgrammingError:
-            # tablo veya kolon yoksa vb. hata → görmezden gel
-            pass
-    else:
-        # SQLite / MySQL durumunda model TEXT olduğu için genellikle sorun çıkmaz.
-        pass
-
+    sql = "ALTER TABLE users ALTER COLUMN password TYPE TEXT"
+    with db.engine.begin() as conn:
+        conn.execute(text(sql))
     return "OK: users.password -> TEXT", 200
 
-
-@app.get("/__init_db")
-def init_db():
-    """
-    Amaç: Tabloları oluştur ve admin yoksa 'helpadmin / Admin123!' ekle.
-    Kullanım: /__init_db?token=<INIT_TOKEN>
-    """
-    token = request.args.get("token", "")
+@app.route("/__migrate_students")
+def migrate_students():
+    token = request.args.get("token")
     if token != INIT_TOKEN:
         abort(403)
 
-    with app.app_context():
-        db.create_all()
-
-        admin = User.query.filter_by(username="helpadmin").first()
-        if not admin:
-            admin = User(
-                username="helpadmin",
-                password=generate_password_hash("Admin123!")
-            )
-            db.session.add(admin)
+    stmts = [
+        "ALTER TABLE student ALTER COLUMN name TYPE VARCHAR(150)",
+        "ALTER TABLE student ALTER COLUMN phone TYPE VARCHAR(30)",
+        "ALTER TABLE student ALTER COLUMN school_no TYPE VARCHAR(30)",
+        "ALTER TABLE student ALTER COLUMN added_by TYPE VARCHAR(80)",
+        "ALTER TABLE student ALTER COLUMN status TYPE VARCHAR(20)",
+        "ALTER TABLE student ALTER COLUMN department TYPE VARCHAR(200)",
+        "ALTER TABLE student ALTER COLUMN faculty TYPE VARCHAR(200)",
+    ]
+    with db.engine.begin() as conn:
+        for s in stmts:
             try:
-                db.session.commit()
-            except DataError:
-                # Kolon dar ise önce migrate endpoint'ini çalıştır.
-                return ("HATA: users.password kolonu dar. "
-                        "Önce /__migrate_pwlen?token=... çağırın."), 500
-
-    return "OK: DB hazır + admin eklendi (helpadmin / Admin123!)", 200
+                conn.execute(text(s))
+            except Exception:
+                pass
+    return "OK: student columns normalized", 200
 
 
-# -------------------------------------------------------------------
-# 6) LOCAL ÇALIŞTIRMA
-# -------------------------------------------------------------------
+# -------------------------------
+# İlk kurulum / Admin ekleme
+# -------------------------------
+with app.app_context():
+    db.create_all()
+    # Şema eskiden geldiyse, parolayı TEXT'e zorla (PG ise)
+    try:
+        if db.engine.url.get_backend_name().startswith("postgresql"):
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ALTER COLUMN password TYPE TEXT"))
+    except Exception:
+        pass
+
+    # Admin oluştur
+    if not User.query.filter_by(username="helpadmin").first():
+        db.session.add(User(username="helpadmin", password=generate_password_hash("Admin123!")))
+        db.session.commit()
+        print("✅ Admin oluşturuldu: helpadmin / Admin123!")
+
+
+# -------------------------------
+# Çalıştırma
+# -------------------------------
 if __name__ == "__main__":
-    # Local geliştirme için:
-    # - İlk kez kurulumda sırayla:
-    #   1) /__migrate_pwlen?token=INIT_TOKEN
-    #   2) /__init_db?token=INIT_TOKEN
     port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=False)
