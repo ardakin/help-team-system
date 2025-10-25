@@ -380,18 +380,24 @@ def main_screen():
 
 @app.route("/init_db")
 def init_db():
-    token = request.args.get("token", "")
+    token = request.args.get("token")
+    # Güvenlik: Sadece sen çalıştır
     if token != os.getenv("help-team-system-123"):
         abort(403)
-    with app.app_context():
-        db.create_all()
-        from app import User
-        if not User.query.filter_by(username="helpadmin").first():
-            u = User(username="helpadmin", password=generate_password_hash("Admin123!", method="pbkdf2:sha256"))
-            db.session.add(u)
-            db.session.commit()
-    return "✅ Veritabanı oluşturuldu, admin: helpadmin / Admin123!"
 
+    with app.app_context():
+        db.create_all()  # User, Student, StudentNote tablolarını oluşturur
+
+        # Varsayılan admin yoksa oluştur
+        if not User.query.filter_by(username="helpadmin").first():
+            admin = User(
+                username="helpadmin",
+                password=generate_password_hash("Admin123!")
+            )
+            db.session.add(admin)
+            db.session.commit()
+
+    return "✅ Veritabanı oluşturuldu, admin eklendi (helpadmin / Admin123!)"
 # ------------------ Main ------------------
 if __name__ == "__main__":
     # DB migration-benzeri güvenli eklemeler
