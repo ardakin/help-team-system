@@ -6,17 +6,8 @@ from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired
 from dotenv import load_dotenv
 from datetime import datetime
-from sqlalchemy import text, inspect
 from sqlalchemy import text, inspect, func, or_
-from flask_talisman import Talisman
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask import request, abort
-import os
-# User(password=generate_password_hash('Admin123!', method='pbkdf2:sha256'))
-
-
+from werkzeug.security import generate_password_hash
 
 import os
 
@@ -154,31 +145,12 @@ FACULTY_DEPARTMENTS = {
         "TIBBİ GÖRÜNTÜLEME TEKNİKLERİ",
         "TIBBİ LABORATUVAR TEKNİKLERİ",
         "TIBBİ VERİ İŞLEME TEKNİKERLİĞİ",
-        "DİJİTAL SAĞLIK SİSTEMLERİ TEKNİKERLİĞİ",
+        "DİJİTAL SAĞLIK SİSTEMLERİ TEKNİKERLİĞİ", 
         "BİYOMEDİKAL CİHAZ TEKNOLOJİLERİ",
     ],
 }
 
 app = Flask(__name__)
-app.config.update(
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=True,    # PaaS HTTPS arkasında
-    REMEMBER_COOKIE_SECURE=True
-)
-
-# HTTPS güvenlik başlıkları (CSP’yi sade tuttum)
-csp = {
-  'default-src': ["'self'"],
-  'img-src': ["'self'", "data:", "https:"],
-  'style-src': ["'self'", "'unsafe-inline'", "https:"],
-  'script-src': ["'self'", "'unsafe-inline'", "https:"],
-  'font-src': ["'self'", "https:", "data:"]
-}
-Talisman(app, content_security_policy=csp, force_https=True, strict_transport_security=True)
-
-# IP başına oran sınırlama (genel)
-limiter = Limiter(get_remote_address, app=app, default_limits=["200 per hour"])
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///students.db')
 
@@ -226,11 +198,10 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
-        if user and check_password_hash(user.password, form.password.data):
+        if user and user.password == form.password.data:
             login_user(user)
             return redirect(url_for("dashboard"))
-        else:
-            flash("Kullanıcı adı veya şifre hatalı", "danger")
+        flash("Kullanıcı adı veya şifre hatalı", "danger")
     return render_template("login.html", form=form)
 
 @app.route("/dashboard")
@@ -378,42 +349,42 @@ def main_screen():
     total = db.session.query(func.count(Student.id)).scalar() or 0
     return render_template("main.html", rows=rows, total=total)
 
-@app.route("/init_db")
-def init_db():
-    token = request.args.get("token")
-    # Güvenlik: Sadece sen çalıştır
-    if token != os.getenv("help-team-system-123"):
-        abort(403)
 
-    with app.app_context():
-        db.create_all()  # User, Student, StudentNote tablolarını oluşturur
-
-        # Varsayılan admin yoksa oluştur
-        if not User.query.filter_by(username="helpadmin").first():
-            admin = User(
-                username="helpadmin",
-                password=generate_password_hash("Admin123!")
-            )
-            db.session.add(admin)
-            db.session.commit()
-
-    return "✅ Veritabanı oluşturuldu, admin eklendi (helpadmin / Admin123!)"
 # ------------------ Main ------------------
 if __name__ == "__main__":
     # DB migration-benzeri güvenli eklemeler
     with app.app_context():
-        db.create_all()
+        db.create_all()  # tüm tabloları oluştur
         insp = inspect(db.engine)
-        cols = [c["name"] for c in insp.get_columns("student")]
+        tables = set(insp.get_table_names())
 
-        if "status" not in cols:
-            db.session.execute(text("ALTER TABLE student ADD COLUMN status VARCHAR(20) DEFAULT 'cozulmedi'"))
-            db.session.commit()
-        if "department" not in cols:
-            db.session.execute(text("ALTER TABLE student ADD COLUMN department VARCHAR(200)"))
-            db.session.commit()
-        if "faculty" not in cols:
-            db.session.execute(text("ALTER TABLE student ADD COLUMN faculty VARCHAR(200)"))
-            db.session.commit()
+        # 'user' veya 'users' tablosu varsa ve helpadmin yoksa ekle
+        if 'user' in tables or 'users' in tables:
+            admin = User.query.filter_by(username='helpadmin').first()
+            if not admin:
+                admin = User(
+                    username='helpadmin',
+                    password=generate_password_hash('Admin123!')
+                )
+                db.session.add(admin)
+                db.session.commit()
+                print("✅ Admin oluşturuldu: helpadmin / Admin123!")
+        else:
+            print("⚠️ 'user(s)' tablosu bulunamadı!")
+
+        # Ek kolon eklemeleri (varsa)
+        cols = []
+        if 'student' in tables:
+            cols = [c["name"] for c in insp.get_columns("student")]
+
+            if "status" not in cols:
+                db.session.execute(text("ALTER TABLE student ADD COLUMN status VARCHAR(20) DEFAULT 'cozulmedi'"))
+                db.session.commit()
+            if "department" not in cols:
+                db.session.execute(text("ALTER TABLE student ADD COLUMN department VARCHAR(200)"))
+                db.session.commit()
+            if "faculty" not in cols:
+                db.session.execute(text("ALTER TABLE student ADD COLUMN faculty VARCHAR(200)"))
+                db.session.commit()
 
     app.run(debug=True)
