@@ -381,7 +381,7 @@ def main_screen():
 @app.route("/init_db")
 def init_db():
     token = request.args.get("token", "")
-    if token != os.getenv("INIT_TOKEN"):
+    if token != os.getenv("help-team-system-123"):
         abort(403)
     with app.app_context():
         db.create_all()
