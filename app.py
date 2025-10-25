@@ -387,4 +387,6 @@ if __name__ == "__main__":
                 db.session.execute(text("ALTER TABLE student ADD COLUMN faculty VARCHAR(200)"))
                 db.session.commit()
 
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port, debug=False)
+
