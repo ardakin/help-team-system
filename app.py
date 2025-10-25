@@ -12,6 +12,8 @@ from flask_talisman import Talisman
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask import request, abort
+import os
 # User(password=generate_password_hash('Admin123!', method='pbkdf2:sha256'))
 
 
@@ -376,6 +378,19 @@ def main_screen():
     total = db.session.query(func.count(Student.id)).scalar() or 0
     return render_template("main.html", rows=rows, total=total)
 
+@app.route("/init_db")
+def init_db():
+    token = request.args.get("token", "")
+    if token != os.getenv("INIT_TOKEN"):
+        abort(403)
+    with app.app_context():
+        db.create_all()
+        from app import User
+        if not User.query.filter_by(username="helpadmin").first():
+            u = User(username="helpadmin", password=generate_password_hash("Admin123!", method="pbkdf2:sha256"))
+            db.session.add(u)
+            db.session.commit()
+    return "✅ Veritabanı oluşturuldu, admin: helpadmin / Admin123!"
 
 # ------------------ Main ------------------
 if __name__ == "__main__":
