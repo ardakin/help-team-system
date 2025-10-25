@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_wtf import FlaskForm
@@ -165,8 +165,8 @@ login_manager.login_view = "login"
 # ------------------ Modeller ------------------
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(150), unique=True, nullable=False)
-    password = db.Column(db.String(150), nullable=False)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
     __tablename__ = 'users'
 
 
@@ -356,6 +356,21 @@ def main_screen():
     total = db.session.query(func.count(Student.id)).scalar() or 0
     return render_template("main.html", rows=rows, total=total)
 
+@app.route('/__migrate_pwlen')
+def migrate_pwlen():
+    token = request.args.get('token')
+    if token != os.getenv('INIT_TOKEN', 'dev'):
+        abort(403)
+
+    # Eğer modeli String(255) yaptıysan:
+    sql = "ALTER TABLE users ALTER COLUMN password TYPE VARCHAR(255);"
+    # Eğer modeli Text yaptıysan yukarıdaki yerine:
+    # sql = "ALTER TABLE users ALTER COLUMN password TYPE TEXT;"
+
+    with db.engine.begin() as conn:
+        conn.execute(text(sql))
+
+    return "OK: users.password column resized", 200
 
 # ------------------ Main ------------------
 with app.app_context():
