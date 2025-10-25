@@ -7,7 +7,7 @@ from wtforms.validators import DataRequired
 from dotenv import load_dotenv
 from datetime import datetime
 from sqlalchemy import text, inspect, func, or_
-from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 import os
 
@@ -152,7 +152,11 @@ FACULTY_DEPARTMENTS = {
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///students.db')
+uri = os.getenv('DATABASE_URL', 'sqlite:///students.db')
+if uri.startswith('postgres://'):
+    uri = uri.replace('postgres://', 'postgresql+psycopg2://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = uri
+
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -163,6 +167,8 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
+    __tablename__ = 'users'
+
 
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -198,10 +204,11 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
-        if user and user.password == form.password.data:
+        if user and check_password_hash(user.password, form.password.data):
             login_user(user)
             return redirect(url_for("dashboard"))
-        flash("Kullanıcı adı veya şifre hatalı", "danger")
+        else:
+            flash("Kullanıcı adı veya şifre hatalı", "danger")               
     return render_template("login.html", form=form)
 
 @app.route("/dashboard")
@@ -351,6 +358,13 @@ def main_screen():
 
 
 # ------------------ Main ------------------
+with app.app_context():
+    db.create_all()
+    if not User.query.filter_by(username="helpadmin").first():
+        db.session.add(User(username="helpadmin", password=generate_password_hash("Admin123!")))
+        db.session.commit()
+        print("Admin oluşturuldu: helpadmin / Admin123!")
+
 if __name__ == "__main__":
     # DB migration-benzeri güvenli eklemeler
     with app.app_context():
