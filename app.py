@@ -412,7 +412,28 @@ def migrate_created_at():
     token = request.args.get("token", "")
     if token != os.getenv("INIT_TOKEN", "dev"):
         return "forbidden", 403
+@app.get("/__migrate_all")
+def migrate_all():
+    token = request.args.get("token")
+    if token != os.getenv("INIT_TOKEN", "dev"):
+        abort(403)
 
+    stmts = [
+        # users.password: uzun hash'ler için
+        "ALTER TABLE users ALTER COLUMN password TYPE TEXT",
+        # student kolonları (Postgres'te IF NOT EXISTS desteklenir)
+        "ALTER TABLE student ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'cozulmedi'",
+        "ALTER TABLE student ADD COLUMN IF NOT EXISTS department VARCHAR(200)",
+        "ALTER TABLE student ADD COLUMN IF NOT EXISTS faculty VARCHAR(200)",
+    ]
+    with db.engine.begin() as conn:
+        for s in stmts:
+            try:
+                conn.execute(text(s))
+            except Exception as e:
+                # Eğer kolon zaten uygun tipteyse / tablo yoksa hata atabilir; loglayıp devam ediyoruz
+                print(f"[migrate] {s} -> {e}")
+    return "OK: migrate_all", 200
     driver = db.engine.url.drivername  # 'postgresql+psycopg2' veya 'sqlite'
     try:
         if driver.startswith("postgresql"):
