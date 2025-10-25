@@ -407,7 +407,28 @@ def main_screen():
         .all()
     total = db.session.query(func.count(Student.id)).scalar() or 0
     return render_template("main.html", rows=rows, total=total)
+@app.route("/__migrate_created_at")
+def migrate_created_at():
+    token = request.args.get("token", "")
+    if token != os.getenv("INIT_TOKEN", "dev"):
+        return "forbidden", 403
 
+    driver = db.engine.url.drivername  # 'postgresql+psycopg2' veya 'sqlite'
+    try:
+        if driver.startswith("postgresql"):
+            sql = """
+            ALTER TABLE student
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW();
+            """
+        else:
+            # SQLite'ta IF NOT EXISTS yok; önce kolonu var mı diye kontrol etmeye de gerek yok,
+            # eklenmişse hata verir. O yüzden try/except ile sarmalıyoruz.
+            sql = "ALTER TABLE student ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"
+        with db.engine.begin() as conn:
+            conn.execute(text(sql))
+        return "OK: student.created_at added or already exists", 200
+    except Exception as e:
+        return f"ERR: {e}", 500
 
 # -------------------------------
 # Migration / bakım endpoint'leri
