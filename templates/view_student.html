@@ -61,24 +61,22 @@
         <h6 class="mb-3"><i class="bi bi-clipboard-plus me-1"></i> Durum & Not</h6>
 
         <!-- ÖNEMLİ: POST ayni route'a -->
-        <form method="post" action="{{ url_for('view_student', id=student.id) }}" class="row g-3">
-          <div class="col-12">
-            <label class="form-label">Durum</label>
-            <select name="status" class="form-select">
-              <option value="cozulmedi" {{ 'selected' if student.status!='cozuldu' else '' }}>Çözülmedi</option>
-              <option value="cozuldu"   {{ 'selected' if student.status=='cozuldu' else '' }}>Çözüldü</option>
-            </select>
-          </div>
-          <div class="col-12">
-            <label class="form-label">Not</label>
-            <textarea name="note" class="form-control" rows="3" placeholder="Duruma ilişkin not ekleyin (opsiyonel)"></textarea>
-          </div>
-          <div class="col-12">
-            <button class="btn btn-primary"><i class="bi bi-save me-1"></i> Kaydet</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <form method="post" action="{{ url_for('add_note', id=student.id) }}" class="row g-3">
+  <div class="col-12">
+    <label class="form-label">Durum</label>
+    <select name="status" class="form-select">
+      <option value="cozulmedi" {{ 'selected' if student.status!='cozuldu' else '' }}>Çözülmedi</option>
+      <option value="cozuldu"   {{ 'selected' if student.status=='cozuldu' else '' }}>Çözüldü</option>
+    </select>
+  </div>
+  <div class="col-12">
+    <label class="form-label">Not</label>
+    <textarea name="note" class="form-control" rows="3" placeholder="Duruma ilişkin not ekleyin (opsiyonel)"></textarea>
+  </div>
+  <div class="col-12">
+    <button class="btn btn-primary"><i class="bi bi-save me-1"></i> Kaydet</button>
+  </div>
+</form>
 
     <!-- Sağ sütun: Notlar -->
     <div class="col-12 col-lg-7">

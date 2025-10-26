@@ -32,6 +32,7 @@ if DATABASE_URL.startswith("postgresql+psycopg2://") and "sslmode=" not in DATAB
 # Flask ve DB
 # -------------------------------
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 app.config["SECRET_KEY"] = SECRET_KEY
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -421,6 +422,14 @@ def main_screen():
         .all()
     total = db.session.query(func.count(Student.id)).scalar() or 0
     return render_template("main.html", rows=rows, total=total)
+
+@app.get("/__routes")
+def __routes():
+    lines = []
+    for r in app.url_map.iter_rules():
+        methods = ",".join(sorted(m for m in r.methods if m not in ("HEAD","OPTIONS")))
+        lines.append(f"{r.rule:35s} -> {methods}  ({r.endpoint})")
+    return "<pre>" + "\n".join(sorted(lines)) + "</pre>"
 
 # -------------------------------
 # Migration / bakım endpoint'leri
