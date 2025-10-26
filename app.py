@@ -335,7 +335,25 @@ def add_student():
 @login_required
 def view_student(id):
     s = Student.query.get_or_404(id)
-    notes = StudentNote.query.filter_by(student_id=id).order_by(StudentNote.created_at.desc()).all()
+
+    # Form POST geldiyse: not ekle + durum değiştir
+    if request.method == "POST":
+        note_text = (request.form.get("note") or "").strip()
+        new_status = (request.form.get("status") or "").strip()
+
+        if note_text:
+            n = StudentNote(student_id=id, text=note_text, author=current_user.username)
+            db.session.add(n)
+
+        if new_status in ("cozuldu", "cozulmedi"):
+            s.status = new_status
+
+        db.session.commit()
+        flash("Detay güncellendi.", "success")
+        return redirect(url_for("view_student", id=id))
+
+    notes = StudentNote.query.filter_by(student_id=id) \
+                             .order_by(StudentNote.created_at.desc()).all()
     return render_template("view_student.html", student=s, notes=notes)
 
 @app.route("/student/<int:id>/edit", methods=["GET", "POST"])
