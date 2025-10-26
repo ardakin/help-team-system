@@ -9,7 +9,7 @@ from flask_login import (
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired
-from sqlalchemy import text, inspect, func, or_
+from sqlalchemy import text, func, or_
 from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
 
@@ -19,11 +19,14 @@ from dotenv import load_dotenv
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///students.db")
-INIT_TOKEN = os.getenv("INIT_TOKEN", "help-team-system-123")  # << sen verdiğin token
+INIT_TOKEN = os.getenv("INIT_TOKEN", "help-team-system-123")  # senin verdiğin token
 
-# Railway 'postgres://' -> 'postgresql+psycopg2://'
+# Postgres URL fix + SSL
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+if DATABASE_URL.startswith("postgresql+psycopg2://") and "sslmode=" not in DATABASE_URL:
+    sep = "&" if "?" in DATABASE_URL else "?"
+    DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
 
 # -------------------------------
 # Flask ve DB
@@ -176,38 +179,35 @@ FACULTY_DEPARTMENTS = {
     ],
 }
 
-
 # -------------------------------
 # Modeller
 # -------------------------------
 class User(UserMixin, db.Model):
     __tablename__ = "users"
-    id = db.Column(db.Integer, primary_key=True)
+    id       = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    # Parolayı TEXT tuttuk -> Railway PG'de 150 limit hatası yaşamayalım
+    # Parola TEXT -> uzun hash'lerde patlamasın
     password = db.Column(db.Text, nullable=False)
-
 
 class Student(db.Model):
     __tablename__ = "student"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), nullable=False)
-    phone = db.Column(db.String(30))
-    school_no = db.Column(db.String(30))
-    added_by = db.Column(db.String(80))
-    status = db.Column(db.String(20), default="cozulmedi")  # 'cozuldu' | 'cozulmedi'
-    department = db.Column(db.String(200))  # Bölüm
-    faculty = db.Column(db.String(200))  # Fakülte
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(150), nullable=False)
+    phone      = db.Column(db.String(30))
+    school_no  = db.Column(db.String(30))
+    added_by   = db.Column(db.String(80))
+    status     = db.Column(db.String(20), default="cozulmedi")  # 'cozuldu'|'cozulmedi'
+    department = db.Column(db.String(200))
+    faculty    = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class StudentNote(db.Model):
     __tablename__ = "student_note"
-    id = db.Column(db.Integer, primary_key=True)
+    id         = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
-    text = db.Column(db.Text, nullable=False)
-    author = db.Column(db.String(80))
+    text       = db.Column(db.Text, nullable=False)
+    author     = db.Column(db.String(80))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
 
 # -------------------------------
 # Login Manager
@@ -216,22 +216,19 @@ class StudentNote(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-
 # -------------------------------
 # Formlar
 # -------------------------------
 class LoginForm(FlaskForm):
-    # Şimdilik CSRF'yi kapatıyoruz ki şablon eksikse bile sorun olmasın
+    # İlk aşamada CSRF'yi kapattım; form hatası akışı engellemesin
     class Meta:
         csrf = False
-
     username = StringField("Kullanıcı Adı", validators=[DataRequired()])
     password = PasswordField("Şifre", validators=[DataRequired()])
-    submit = SubmitField("Giriş Yap")
-
+    submit   = SubmitField("Giriş Yap")
 
 # -------------------------------
-# Rotalar
+# Routes
 # -------------------------------
 @app.route("/", methods=["GET", "POST"])
 def login():
@@ -260,15 +257,14 @@ def health():
 def whoami():
     return f"✅ {current_user.username}", 200
 
-
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    q = request.args.get("q", "").strip()
-    status = request.args.get("status", "").strip()
+    q          = request.args.get("q", "").strip()
+    status     = request.args.get("status", "").strip()
     department = request.args.get("department", "").strip()
-    faculty = request.args.get("faculty", "").strip()
-    added_by = request.args.get("added_by", "").strip()
+    faculty    = request.args.get("faculty", "").strip()
+    added_by   = request.args.get("added_by", "").strip()
 
     query = Student.query
 
@@ -308,12 +304,12 @@ def dashboard():
 @login_required
 def add_student():
     if request.method == "POST":
-        name = (request.form.get("name") or "").strip()
-        phone = (request.form.get("phone") or "").strip()
-        school_no = (request.form.get("school_no") or "").strip()
+        name       = (request.form.get("name") or "").strip()
+        phone      = (request.form.get("phone") or "").strip()
+        school_no  = (request.form.get("school_no") or "").strip()
         department = (request.form.get("department") or "").strip()
-        faculty = (request.form.get("faculty") or "").strip()
-        status = request.form.get("status", "cozulmedi")
+        faculty    = (request.form.get("faculty") or "").strip()
+        status     = request.form.get("status", "cozulmedi")
 
         if not name:
             flash("İsim zorunlu.", "danger")
@@ -347,12 +343,12 @@ def view_student(id):
 def edit_student(id):
     s = Student.query.get_or_404(id)
     if request.method == "POST":
-        s.name = request.form.get("name", s.name)
-        s.phone = request.form.get("phone", s.phone)
-        s.school_no = request.form.get("school_no", s.school_no)
+        s.name       = request.form.get("name", s.name)
+        s.phone      = request.form.get("phone", s.phone)
+        s.school_no  = request.form.get("school_no", s.school_no)
         s.department = request.form.get("department", s.department)
-        s.faculty = request.form.get("faculty", s.faculty)
-        new_status = request.form.get("status", s.status)
+        s.faculty    = request.form.get("faculty", s.faculty)
+        new_status   = request.form.get("status", s.status)
         if new_status in ("cozuldu", "cozulmedi"):
             s.status = new_status
         db.session.commit()
@@ -374,7 +370,7 @@ def delete_student(id):
 @login_required
 def add_note(id):
     s = Student.query.get_or_404(id)
-    note_text = (request.form.get("note") or "").strip()
+    note_text  = (request.form.get("note") or "").strip()
     new_status = (request.form.get("status") or "").strip()
     if note_text:
         n = StudentNote(student_id=id, text=note_text, author=current_user.username)
@@ -407,65 +403,73 @@ def main_screen():
         .all()
     total = db.session.query(func.count(Student.id)).scalar() or 0
     return render_template("main.html", rows=rows, total=total)
-@app.route("/__migrate_created_at")
-def migrate_created_at():
-    token = request.args.get("token", "")
-    if token != os.getenv("INIT_TOKEN", "dev"):
-        return "forbidden", 403
+
+# -------------------------------
+# Migration / bakım endpoint'leri
+# -------------------------------
+@app.get("/__seed_admin")
+def seed_admin():
+    token = request.args.get("token")
+    if token != INIT_TOKEN:
+        abort(403)
+    if not User.query.filter_by(username="helpadmin").first():
+        db.session.add(User(username="helpadmin",
+                            password=generate_password_hash("Admin123!")))
+        db.session.commit()
+    return "OK: helpadmin/Admin123!", 200
+
 @app.get("/__migrate_all")
 def migrate_all():
     token = request.args.get("token")
-    if token != os.getenv("INIT_TOKEN", "dev"):
+    if token != INIT_TOKEN:
         abort(403)
 
-    stmts = [
-        # users.password: uzun hash'ler için
-        "ALTER TABLE users ALTER COLUMN password TYPE TEXT",
-        # student kolonları (Postgres'te IF NOT EXISTS desteklenir)
-        "ALTER TABLE student ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'cozulmedi'",
-        "ALTER TABLE student ADD COLUMN IF NOT EXISTS department VARCHAR(200)",
-        "ALTER TABLE student ADD COLUMN IF NOT EXISTS faculty VARCHAR(200)",
-    ]
+    driver = db.engine.url.get_backend_name()  # 'postgresql' ya da 'sqlite'
+
+    stmts = []
+    # users.password -> TEXT
+    stmts.append("ALTER TABLE users ALTER COLUMN password TYPE TEXT")
+
+    if driver.startswith("postgresql"):
+        # Postgres: IF NOT EXISTS var
+        stmts += [
+            "ALTER TABLE student ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'cozulmedi'",
+            "ALTER TABLE student ADD COLUMN IF NOT EXISTS department VARCHAR(200)",
+            "ALTER TABLE student ADD COLUMN IF NOT EXISTS faculty VARCHAR(200)",
+            "ALTER TABLE student ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()",
+        ]
+    else:
+        # SQLite: IF NOT EXISTS yok, try/except ile deneriz
+        stmts += [
+            "ALTER TABLE student ADD COLUMN status VARCHAR(20) DEFAULT 'cozulmedi'",
+            "ALTER TABLE student ADD COLUMN department VARCHAR(200)",
+            "ALTER TABLE student ADD COLUMN faculty VARCHAR(200)",
+            "ALTER TABLE student ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        ]
+
     with db.engine.begin() as conn:
         for s in stmts:
             try:
                 conn.execute(text(s))
             except Exception as e:
-                # Eğer kolon zaten uygun tipteyse / tablo yoksa hata atabilir; loglayıp devam ediyoruz
-                print(f"[migrate] {s} -> {e}")
-    return "OK: migrate_all", 200
-    driver = db.engine.url.drivername  # 'postgresql+psycopg2' veya 'sqlite'
-    try:
-        if driver.startswith("postgresql"):
-            sql = """
-            ALTER TABLE student
-            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW();
-            """
-        else:
-            # SQLite'ta IF NOT EXISTS yok; önce kolonu var mı diye kontrol etmeye de gerek yok,
-            # eklenmişse hata verir. O yüzden try/except ile sarmalıyoruz.
-            sql = "ALTER TABLE student ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"
-        with db.engine.begin() as conn:
-            conn.execute(text(sql))
-        return "OK: student.created_at added or already exists", 200
-    except Exception as e:
-        return f"ERR: {e}", 500
+                print(f"[migrate_all] {s} -> {e}")
 
-# -------------------------------
-# Migration / bakım endpoint'leri
-# -------------------------------
-@app.route("/__migrate_pwlen")
+    return "OK: migrate_all", 200
+
+@app.get("/__migrate_pwlen")
 def migrate_pwlen():
     token = request.args.get("token")
     if token != INIT_TOKEN:
         abort(403)
-
     sql = "ALTER TABLE users ALTER COLUMN password TYPE TEXT"
     with db.engine.begin() as conn:
-        conn.execute(text(sql))
+        try:
+            conn.execute(text(sql))
+        except Exception as e:
+            print(f"[migrate_pwlen] {e}")
     return "OK: users.password -> TEXT", 200
 
-@app.route("/__migrate_students")
+@app.get("/__migrate_students")
 def migrate_students():
     token = request.args.get("token")
     if token != INIT_TOKEN:
@@ -484,30 +488,47 @@ def migrate_students():
         for s in stmts:
             try:
                 conn.execute(text(s))
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[migrate_students] {s} -> {e}")
     return "OK: student columns normalized", 200
 
+@app.get("/__migrate_created_at")
+def migrate_created_at():
+    token = request.args.get("token")
+    if token != INIT_TOKEN:
+        abort(403)
+
+    driver = db.engine.url.get_backend_name()
+    if driver.startswith("postgresql"):
+        sql = "ALTER TABLE student ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()"
+    else:
+        sql = "ALTER TABLE student ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+
+    with db.engine.begin() as conn:
+        try:
+            conn.execute(text(sql))
+        except Exception as e:
+            print(f"[migrate_created_at] {e}")
+    return "OK: created_at ensured", 200
 
 # -------------------------------
-# İlk kurulum / Admin ekleme
+# İlk kurulum - local/dev için
 # -------------------------------
 with app.app_context():
+    # Localde tablo yoksa oluştursun; prod'da migration endpointi kullanıyoruz
     db.create_all()
-    # Şema eskiden geldiyse, parolayı TEXT'e zorla (PG ise)
+    # Parola TEXT'e zorla (PG'de eski şema varsa)
     try:
         if db.engine.url.get_backend_name().startswith("postgresql"):
             with db.engine.begin() as conn:
                 conn.execute(text("ALTER TABLE users ALTER COLUMN password TYPE TEXT"))
     except Exception:
         pass
-
-    # Admin oluştur
+    # Admin yoksa ekle
     if not User.query.filter_by(username="helpadmin").first():
         db.session.add(User(username="helpadmin", password=generate_password_hash("Admin123!")))
         db.session.commit()
         print("✅ Admin oluşturuldu: helpadmin / Admin123!")
-
 
 # -------------------------------
 # Çalıştırma
