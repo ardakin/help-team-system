@@ -12,6 +12,8 @@
     .chip{padding:.3rem .6rem;border-radius:999px;font-size:.8rem}
     .chip-success{background:#e7f7ef;color:#13795b}
     .chip-warn{background:#fff1cd;color:#8a6d0a}
+    /* Sağdaki Notlar kutusunu taşırma olmasın */
+    .sticky-md-top{top:1rem}
   </style>
 </head>
 <body>
@@ -35,12 +37,13 @@
     {% endif %}
   {% endwith %}
 
-  <div class="row g-4">
-    <!-- Sol sütun -->
-    <div class="col-12 col-lg-5">
-      <div class="glass p-4">
+  <!-- md ve üzeri yan yana, altında alt alta -->
+  <div class="row g-4 align-items-start">
+    <!-- SOL SÜTUN -->
+    <div class="col-12 col-md-5">
+      <div class="glass p-4 mb-3">
         <h4 class="mb-3"><i class="bi bi-person-badge me-1"></i> {{ student.name }}</h4>
-        <div class="row gy-2">
+        <div class="row">
           <div class="col-5 text-muted">Telefon</div><div class="col-7">{{ student.phone or '-' }}</div>
           <div class="col-5 text-muted">Okul No</div><div class="col-7">{{ student.school_no or '-' }}</div>
           <div class="col-5 text-muted">Fakülte</div><div class="col-7">{{ student.faculty or '-' }}</div>
@@ -57,40 +60,39 @@
         </div>
       </div>
 
-      <div class="glass p-4 mt-3">
-        <h6 class="mb-3"><i class="bi bi-clipboard-plus me-1"></i> Durum & Not</h6>
-
-        <!-- ÖNEMLİ: POST ayni route'a -->
-        <form method="post" action="{{ url_for('add_note', id=student.id) }}" class="row g-3">
-  <div class="col-12">
-    <label class="form-label">Durum</label>
-    <select name="status" class="form-select">
-      <option value="cozulmedi" {{ 'selected' if student.status!='cozuldu' else '' }}>Çözülmedi</option>
-      <option value="cozuldu"   {{ 'selected' if student.status=='cozuldu' else '' }}>Çözüldü</option>
-    </select>
-  </div>
-  <div class="col-12">
-    <label class="form-label">Not</label>
-    <textarea name="note" class="form-control" rows="3" placeholder="Duruma ilişkin not ekleyin (opsiyonel)"></textarea>
-  </div>
-  <div class="col-12">
-    <button class="btn btn-primary"><i class="bi bi-save me-1"></i> Kaydet</button>
-  </div>
-</form>
-
-    <!-- Sağ sütun: Notlar -->
-    <div class="col-12 col-lg-7">
       <div class="glass p-4">
+        <h6 class="mb-3"><i class="bi bi-clipboard-plus me-1"></i> Durum & Not</h6>
+        <form method="post" class="row g-3" action="{{ url_for('add_note', id=student.id) }}">
+          <div class="col-12">
+            <label class="form-label">Durum</label>
+            <select name="status" class="form-select">
+              <option value="cozulmedi" {{ student.status!='cozuldu' and 'selected' or '' }}>Çözülmedi</option>
+              <option value="cozuldu" {{ student.status=='cozuldu' and 'selected' or '' }}>Çözüldü</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Not</label>
+            <textarea name="note" class="form-control" rows="3" placeholder="Duruma ilişkin not ekleyin (opsiyonel)"></textarea>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary"><i class="bi bi-save me-1"></i> Kaydet</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- SAĞ SÜTUN (Notlar) -->
+    <div class="col-12 col-md-7">
+      <div class="glass p-4 sticky-md-top">
         <h6 class="mb-3"><i class="bi bi-chat-left-text me-1"></i> Notlar</h6>
         {% if notes %}
           <div class="list-group list-group-flush">
             {% for n in notes %}
             <div class="list-group-item px-0">
-              <div class="d-flex justify-content-between align-items-start gap-3">
-                <div class="flex-grow-1">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
                   <div class="small text-muted">
-                    {% if n.created_at %}{{ n.created_at.strftime('%d.%m.%Y %H:%M') }}{% else %}-{% endif %}
-                    • {{ n.author or '—' }}
+                    {{ n.created_at.strftime('%d.%m.%Y %H:%M') }} • {{ n.author or '—' }}
                   </div>
                   <div class="mt-1">{{ n.text }}</div>
                 </div>
