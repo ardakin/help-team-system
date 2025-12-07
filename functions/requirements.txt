@@ -1,0 +1,12 @@
+Flask
+Flask-Login
+Flask-WTF
+Flask-SQLAlchemy
+Flask-Talisman
+Flask-Limiter
+Flask-Migrate
+python-dotenv
+gunicorn
+psycopg2-binary
+firebase-functions
+firebase-admin

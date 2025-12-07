@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Öğrenci Düzenle • Help Team</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style> body{background:#f6f8fb}.glass{background:#fff;border:1px solid #e8ecf2;border-radius:14px;box-shadow:0 10px 30px rgba(13,110,253,.06)} </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg bg-dark navbar-dark">
+  <div class="container-xxl">
+    <a class="navbar-brand fw-semibold" href="{{ url_for('dashboard') }}"><i class="bi bi-grid-1x2-fill me-1"></i>Help Team</a>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('main_screen') }}" class="btn btn-outline-light btn-sm">Liste</a>
+      <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Çıkış</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container-xxl py-4">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-7">
+      <div class="glass p-4">
+        <h4 class="mb-3"><i class="bi bi-pencil-square me-1"></i> Öğrenci Düzenle</h4>
+
+        <form method="post" class="row g-3">
+          <div class="col-12">
+            <label class="form-label">İsim</label>
+            <input type="text" name="name" class="form-control" value="{{ student.name }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Telefon</label>
+            <input type="text" name="phone" class="form-control" value="{{ student.phone or '' }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Okul No</label>
+            <input type="text" name="school_no" class="form-control" value="{{ student.school_no or '' }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Fakülte</label>
+            <input type="text" name="faculty" id="facultyInput" class="form-control" list="facultyList" value="{{ student.faculty or '' }}">
+            <datalist id="facultyList">
+              {% for fac in faculties.keys() %}<option value="{{ fac }}"></option>{% endfor %}
+            </datalist>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Bölüm</label>
+            <input type="text" name="department" id="departmentInput" class="form-control" list="departmentList" value="{{ student.department or '' }}">
+            <datalist id="departmentList"></datalist>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Durum</label>
+            <select name="status" class="form-select">
+              <option value="cozulmedi" {{ student.status!='cozuldu' and 'selected' or '' }}>Çözülmedi</option>
+              <option value="cozuldu" {{ student.status=='cozuldu' and 'selected' or '' }}>Çözüldü</option>
+            </select>
+          </div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary"><i class="bi bi-save me-1"></i> Kaydet</button>
+            <a href="{{ url_for('view_student', id=student.id) }}" class="btn btn-secondary">İptal</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const FACULTY_DEPARTMENTS = {{ faculties | tojson }};
+  const facIn = document.getElementById('facultyInput');
+  const depList = document.getElementById('departmentList');
+  function refreshDepList(fac){
+    depList.innerHTML="";
+    if(fac && FACULTY_DEPARTMENTS[fac]){
+      FACULTY_DEPARTMENTS[fac].forEach(d=>{ const o=document.createElement('option'); o.value=d; depList.appendChild(o); });
+    }
+  }
+  refreshDepList("{{ student.faculty or '' }}");
+  facIn.addEventListener('input', e=> refreshDepList(e.target.value));
+</script>
+</body>
+</html>
