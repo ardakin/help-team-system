@@ -9,21 +9,19 @@
     "rewrites": [
       {
         "source": "**",
-        "function": "helppsys_app"
+        "function": "serving"
       }
     ]
   },
-  "functions": [
-    {
-      "source": "functions",
-      "codebase": "default",
-      "ignore": [
-        "venv",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log"
-      ],
-      "runtime": "python311"
-    }
-  ]
+  "functions": {
+    "source": "functions",
+    "codebase": "default",
+    "ignore": [
+      "venv/",
+      ".git/",
+      "firebase-debug.log",
+      "firebase-debug.*.log"
+    ],
+    "runtime": "python311"
+  }
 }
