@@ -7,71 +7,78 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    body{
-      min-height:100vh;display:flex;align-items:center;justify-content:center;
-      background: radial-gradient(1200px 600px at 20% 20%, #0d6efd22, transparent),
-                  radial-gradient(1200px 600px at 80% 80%, #6f42c122, transparent),
-                  linear-gradient(135deg,#f8fafc,#eef3ff);
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top,#e0f2fe,#eef2ff);
+      font-family: system-ui,-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-    .card-login{
-      width:min(420px, 92vw);
-      border:1px solid #e8ecf2; border-radius:18px;
-      box-shadow:0 18px 45px rgba(15,23,42,0.08);
-      padding:26px 26px 22px; background:#fff;
-    }
-    .brand{
-      font-weight:700;
-      letter-spacing:.03em;
-    }
-    .text-muted-small{
-      font-size:.85rem; color:#6b7280;
+    .card-login {
+      max-width: 420px;
+      width: 100%;
+      border-radius: 18px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 18px 45px rgba(15,23,42,.08);
     }
   </style>
 </head>
 <body>
-  <div class="card-login">
-    <div class="d-flex align-items-center gap-2 mb-3">
-      <i class="bi bi-shield-lock-fill fs-4 text-primary"></i>
-      <h4 class="brand mb-0">Öğrenci Yönetim Sistemi</h4>
+<div class="card card-login p-4 p-md-5 bg-white">
+  <div class="mb-4 text-center">
+    <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary mb-2"
+         style="width:48px;height:48px;">
+      <i class="bi bi-mortarboard-fill fs-4"></i>
+    </div>
+    <h1 class="h4 fw-semibold mb-1">Öğrenci Yönetim Sistemi</h1>
+    <p class="text-muted small mb-0">Sisteme giriş yapınız.</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} py-2 small mb-3">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form method="POST" action="{{ url_for('login') }}" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="mb-3">
+      <label class="form-label small fw-semibold">Kullanıcı Adı</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-person"></i></span>
+        <input type="text"
+               name="username"
+               class="form-control"
+               placeholder="Kullanıcı adı"
+               required>
+      </div>
     </div>
 
-    <p class="text-muted-small mb-3">
-      Sadece yetkili kullanıcılar giriş yapabilir.
+    <div class="mb-4">
+      <label class="form-label small fw-semibold">Şifre</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-key"></i></span>
+        <input type="password"
+               name="password"
+               class="form-control"
+               placeholder="Şifre"
+               required>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary w-100">
+      <i class="bi bi-box-arrow-in-right me-1"></i> Giriş Yap
+    </button>
+
+    <p class="text-muted small mt-3 mb-0">
+      Varsayılan hesap: <strong>admin / Admin123!</strong>
     </p>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for cat, msg in messages %}
-          <div class="alert alert-{{ 'info' if cat not in ['success','danger','warning'] else cat }} alert-dismissible fade show">
-            {{ msg }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-
-    <form method="POST" class="mt-2">
-      {{ form.hidden_tag() }}
-      <div class="mb-3">
-        {{ form.username.label(class="form-label") }}
-        <div class="input-group">
-          <span class="input-group-text"><i class="bi bi-person"></i></span>
-          {{ form.username(class="form-control", placeholder="Kullanıcı adı") }}
-        </div>
-      </div>
-      <div class="mb-3">
-        {{ form.password.label(class="form-label") }}
-        <div class="input-group">
-          <span class="input-group-text"><i class="bi bi-key"></i></span>
-          {{ form.password(class="form-control", placeholder="Şifre") }}
-        </div>
-      </div>
-      <button class="btn btn-primary w-100">
-        <i class="bi bi-box-arrow-in-right me-1"></i> Giriş Yap
-      </button>
-    </form>
-
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  </form>
+</div>
 </body>
 </html>

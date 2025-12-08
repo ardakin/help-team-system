@@ -6,22 +6,20 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "cleanUrls": true,
+
     "rewrites": [
       {
         "source": "**",
-        "function": "serving"
+        "run": {
+          "serviceId": "serving",
+          "region": "us-central1"
+        }
       }
     ]
   },
+
   "functions": {
-    "source": "functions",
-    "codebase": "default",
-    "ignore": [
-      "venv/",
-      ".git/",
-      "firebase-debug.log",
-      "firebase-debug.*.log"
-    ],
-    "runtime": "python311"
+    "source": "functions"
   }
 }
