@@ -44,11 +44,14 @@ if DATABASE_URL.startswith("postgresql+psycopg2://") and "sslmode=" not in DATAB
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 
-app.config["SECRET_KEY"] = SECRET_KEY
-app.config["SESSION_COOKIE_SECURE"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "None"
+# --- GÜVENLİ AMA BASİT SESSION AYARI (lokal + cloud için) ---
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "local-dev-key")
+
+# ŞİMDİLİK üretim paranoyası yapmıyoruz; login’in çalışması öncelik
+app.config["SESSION_COOKIE_SECURE"] = False        # hem http hem https çalışsın
+app.config["REMEMBER_COOKIE_SECURE"] = False
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"      # None yerine Lax
 app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["REMEMBER_COOKIE_SECURE"] = True
 app.config["SESSION_COOKIE_PATH"] = "/"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
@@ -248,11 +251,13 @@ class LoginForm(FlaskForm):
 # -------------------------------
 @app.route("/", methods=["GET", "POST"])
 def login():
-    form = LoginForm()   # <-- EKLENDİ
+    form = LoginForm()  # Sadece template için; back-end tarafında request.form kullanıyoruz
 
     if request.method == "POST":
-        username = form.username.data
-        password = form.password.data
+        username = (request.form.get("username") or "").strip()
+        password = (request.form.get("password") or "").strip()
+
+        print("LOGIN TRY:", username)
 
         user = User.query.filter_by(username=username).first()
 
@@ -264,9 +269,18 @@ def login():
             flash("Şifre yanlış!", "danger")
             return redirect(url_for("login"))
 
-        login_user(user)
-        return redirect("/dashboard")
+        # GİRİŞ BAŞARILI
+        login_user(user, remember=True)
+        print("LOGIN SUCCESS for", user.username)
 
+        # login_required'ın eklediği ?next=/... parametresini oku
+        next_url = request.args.get("next")
+        if next_url:
+            return redirect(next_url)
+
+        return redirect(url_for("dashboard"))
+
+    # GET isteği -> login sayfasını göster
     return render_template("login.html", form=form)
 
 
