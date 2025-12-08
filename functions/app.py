@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from pathlib import Path
 
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_sqlalchemy import SQLAlchemy
@@ -13,27 +14,37 @@ from sqlalchemy import text, func, or_
 from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
 
-# -------------------------------
-# Ortam değişkenleri
-# -------------------------------
-load_dotenv()
+# --------------------------------------------------------
+# ENV YÜKLE
+# --------------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret")
 DATABASE_URL = os.getenv("DATABASE_URL")
-INIT_TOKEN = os.getenv("INIT_TOKEN", "help-team-system-123")
+INIT_TOKEN = os.getenv("INIT_TOKEN", "student-management-system-123")
 
-# Postgres URL fix + SSL
+# --------------------------------------------------------
+# DATABASE URL FIX + SQLite fallback
+# --------------------------------------------------------
+if not DATABASE_URL:
+    root = BASE_DIR.parent
+    DATABASE_URL = f"sqlite:///{root / 'instance' / 'students.db'}"
+
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+
 if DATABASE_URL.startswith("postgresql+psycopg2://") and "sslmode=" not in DATABASE_URL:
     sep = "&" if "?" in DATABASE_URL else "?"
     DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
 
-# -------------------------------
-# Flask ve DB
-# -------------------------------
+# --------------------------------------------------------
+# 🔥 FLASK APP — BUNUN ÜSTÜNE APP.CONFIG YAZILACAK
+# --------------------------------------------------------
 app = Flask(__name__)
 app.url_map.strict_slashes = False
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "local-dev-key")
+
+app.config["SECRET_KEY"] = SECRET_KEY
 app.config["SESSION_COOKIE_SECURE"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "None"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -44,10 +55,8 @@ app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
-
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
-
 
 # -------------------------------
 # Fakülte -> Bölümler (select için)
@@ -239,9 +248,11 @@ class LoginForm(FlaskForm):
 # -------------------------------
 @app.route("/", methods=["GET", "POST"])
 def login():
+    form = LoginForm()   # <-- EKLENDİ
+
     if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
+        username = form.username.data
+        password = form.password.data
 
         user = User.query.filter_by(username=username).first()
 
@@ -253,15 +264,10 @@ def login():
             flash("Şifre yanlış!", "danger")
             return redirect(url_for("login"))
 
-        # LOGIN OK
         login_user(user)
-
-        print("LOGIN SUCCESS — SESSION:", dict(request.cookies))
-
-        # REDIRECT’I SABİTLİYORUZ
         return redirect("/dashboard")
 
-    return render_template("login.html")
+    return render_template("login.html", form=form)
 
 
 @app.route("/logout")
@@ -440,7 +446,7 @@ def add_note(id):
 @login_required
 def delete_note(note_id):
     n = StudentNote.query.get_or_404(note_id)
-    if n.author != current_user.username and current_user.username != "helpadmin":
+    if n.author != current_user.username and current_user.username != "admin":
         flash("Bu notu silme yetkin yok.", "danger")
         return redirect(url_for("view_student", id=n.student_id))
     sid = n.student_id
@@ -479,11 +485,11 @@ def seed_admin():
     token = request.args.get("token")
     if token != INIT_TOKEN:
         abort(403)
-    if not User.query.filter_by(username="helpadmin").first():
-        db.session.add(User(username="helpadmin",
+    if not User.query.filter_by(username="admin").first():
+        db.session.add(User(username="admin",
                             password=generate_password_hash("Admin123!")))
         db.session.commit()
-    return "OK: helpadmin/Admin123!", 200
+    return "OK: admin/Admin123!", 200
 
 @app.get("/__migrate_all")
 def migrate_all():
@@ -593,10 +599,10 @@ if __name__ == "__main__":
     except Exception:
         pass
     # Admin yoksa ekle
-    if not User.query.filter_by(username="helpadmin").first():
-        db.session.add(User(username="helpadmin", password=generate_password_hash("Admin123!")))
+    if not User.query.filter_by(username="admin").first():
+        db.session.add(User(username="admin", password=generate_password_hash("Admin123!")))
         db.session.commit()
-        print("✅ Admin oluşturuldu: helpadmin / Admin123!")
+        print("✅ Admin oluşturuldu: admin / Admin123!")
     
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=False)
