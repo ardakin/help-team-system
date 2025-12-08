@@ -12,73 +12,99 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: radial-gradient(circle at top,#e0f2fe,#eef2ff);
-      font-family: system-ui,-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top, #1d4ed8 0, transparent 55%),
+        radial-gradient(circle at bottom, #4f46e5 0, #020617 55%);
+      color: #0f172a;
     }
-    .card-login {
-      max-width: 420px;
-      width: 100%;
-      border-radius: 18px;
-      border: 1px solid #e5e7eb;
-      box-shadow: 0 18px 45px rgba(15,23,42,.08);
+    .auth-card {
+      background: rgba(248, 250, 252, 0.96);
+      border-radius: 22px;
+      box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+    }
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .25rem .75rem;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.06);
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .form-control,
+    .form-control:focus {
+      border-radius: 12px;
+    }
+    .btn-primary {
+      border-radius: 999px;
+      padding-inline: 1.5rem;
+    }
+    .hint {
+      font-size: .8rem;
+      color: #64748b;
     }
   </style>
 </head>
 <body>
-<div class="card card-login p-4 p-md-5 bg-white">
-  <div class="mb-4 text-center">
-    <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary mb-2"
-         style="width:48px;height:48px;">
-      <i class="bi bi-mortarboard-fill fs-4"></i>
-    </div>
-    <h1 class="h4 fw-semibold mb-1">Öğrenci Yönetim Sistemi</h1>
-    <p class="text-muted small mb-0">Sisteme giriş yapınız.</p>
-  </div>
+  <div class="container px-3">
+    <div class="row justify-content-center">
+      <div class="col-md-6 col-lg-4">
+        <div class="auth-card p-4 p-md-5">
+          <div class="mb-3">
+            <span class="brand-pill text-primary-emphasis">
+              <i class="bi bi-shield-lock-fill"></i>
+              Yönetici Girişi
+            </span>
+          </div>
+          <h1 class="h4 fw-semibold mb-1">Öğrenci Yönetim Sistemi</h1>
+          <p class="hint mb-4">
+            Sadece yetkili kullanıcılar giriş yapabilir.
+          </p>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      {% for category, message in messages %}
-        <div class="alert alert-{{ category }} py-2 small mb-3">
-          {{ message }}
+          {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+              {% for category, message in messages %}
+                <div class="alert alert-{{ category }} py-2 small mb-2">
+                  {{ message }}
+                </div>
+              {% endfor %}
+            {% endif %}
+          {% endwith %}
+
+          <form method="POST" action="{{ url_for('login') }}" novalidate>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Kullanıcı Adı</label>
+              <div class="input-group">
+                <span class="input-group-text bg-transparent border-end-0">
+                  <i class="bi bi-person"></i>
+                </span>
+                <input type="text" name="username" class="form-control border-start-0" placeholder="admin" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Şifre</label>
+              <div class="input-group">
+                <span class="input-group-text bg-transparent border-end-0">
+                  <i class="bi bi-key"></i>
+                </span>
+                <input type="password" name="password" class="form-control border-start-0" placeholder="••••••••" required>
+              </div>
+            </div>
+
+            <div class="d-grid mt-4">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-box-arrow-in-right me-1"></i> Giriş Yap
+              </button>
+            </div>
+          </form>
         </div>
-      {% endfor %}
-    {% endif %}
-  {% endwith %}
-
-  <form method="POST" action="{{ url_for('login') }}" novalidate>
-    {{ form.hidden_tag() }}
-    <div class="mb-3">
-      <label class="form-label small fw-semibold">Kullanıcı Adı</label>
-      <div class="input-group">
-        <span class="input-group-text"><i class="bi bi-person"></i></span>
-        <input type="text"
-               name="username"
-               class="form-control"
-               placeholder="Kullanıcı adı"
-               required>
       </div>
     </div>
-
-    <div class="mb-4">
-      <label class="form-label small fw-semibold">Şifre</label>
-      <div class="input-group">
-        <span class="input-group-text"><i class="bi bi-key"></i></span>
-        <input type="password"
-               name="password"
-               class="form-control"
-               placeholder="Şifre"
-               required>
-      </div>
-    </div>
-
-    <button type="submit" class="btn btn-primary w-100">
-      <i class="bi bi-box-arrow-in-right me-1"></i> Giriş Yap
-    </button>
-
-    <p class="text-muted small mt-3 mb-0">
-      Varsayılan hesap: <strong>admin / Admin123!</strong>
-    </p>
-  </form>
-</div>
+  </div>
 </body>
 </html>

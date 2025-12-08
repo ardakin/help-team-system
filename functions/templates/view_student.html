@@ -7,121 +7,168 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    body{background:#f6f8fb;}
-    .glass{background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 18px 45px rgba(15,23,42,.06);}
-    .chip{padding:.3rem .6rem;border-radius:999px;font-size:.8rem}
-    .chip-success{background:#e7f7ef;color:#13795b}
-    .chip-warn{background:#fff1cd;color:#8a6d0a}
+    body{background:radial-gradient(circle at top,#e0f2fe,#eef2ff);}
+    .navbar-gradient{background:linear-gradient(90deg,#1d4ed8,#4f46e5);}
+    .glass{background:#fff;border-radius:18px;border:1px solid #e5e7eb;box-shadow:0 18px 45px rgba(15,23,42,.08);}
+    .status-badge{padding:.1rem .65rem;border-radius:999px;font-size:.75rem;font-weight:600;}
+    .status-open{background:#fef3c7;color:#92400e;}
+    .status-done{background:#dcfce7;color:#166534;}
+    .note-badge{font-size:.75rem;}
   </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg bg-dark navbar-dark mb-3">
-  <div class="container-fluid">
+
+<nav class="navbar navbar-expand-lg navbar-gradient navbar-dark mb-4">
+  <div class="container-fluid px-4">
     <a class="navbar-brand fw-semibold" href="{{ url_for('dashboard') }}">
-      <i class="bi bi-mortarboard me-1"></i>Öğrenci Yönetim Sistemi
+      <i class="bi bi-mortarboard me-2"></i>Öğrenci Yönetim Sistemi
     </a>
-    <div class="d-flex gap-2">
-      <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm"><i class="bi bi-list-ul me-1"></i>Liste</a>
-      <a href="{{ url_for('add_student') }}" class="btn btn-outline-light btn-sm"><i class="bi bi-person-plus me-1"></i>Öğrenci Ekle</a>
-      <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right"></i></a>
+    <div class="d-flex align-items-center gap-2 ms-auto">
+      <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">
+        <i class="bi bi-list-ul me-1"></i>Liste
+      </a>
+      <a href="{{ url_for('main_screen') }}" class="btn btn-outline-light btn-sm">
+        <i class="bi bi-bar-chart-line me-1"></i>İstatistikler
+      </a>
+      <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm">
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
     </div>
   </div>
 </nav>
 
-<div class="container mb-4">
+<div class="container px-3">
   <div class="row g-3">
-    <div class="col-lg-8">
-      <div class="glass p-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="col-lg-5">
+      <div class="glass p-4 mb-3">
+        <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <h1 class="h5 mb-1">{{ student.name }}</h1>
-            <div class="text-muted small">
-              {% if student.faculty %}{{ student.faculty }}{% endif %}
-              {% if student.department %} • {{ student.department }}{% endif %}
-            </div>
+            <div class="small text-muted">ID: {{ student.id }}</div>
           </div>
-          <div class="text-end">
-            {% if student.status == "cozuldu" %}
-              <span class="chip chip-success">Çözüldü</span>
+          <div>
+            {% if student.status == 'cozuldu' %}
+              <span class="status-badge status-done">Çözüldü</span>
             {% else %}
-              <span class="chip chip-warn">Çözülmedi</span>
+              <span class="status-badge status-open">Çözülmedi</span>
             {% endif %}
           </div>
         </div>
 
         <dl class="row small mb-0">
-          <dt class="col-sm-3">Telefon</dt>
-          <dd class="col-sm-9">{{ student.phone or "—" }}</dd>
+          <dt class="col-4 text-muted">Telefon</dt>
+          <dd class="col-8">
+            {% if student.phone %}
+              <i class="bi bi-telephone me-1 text-muted"></i>{{ student.phone }}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </dd>
 
-          <dt class="col-sm-3">Okul No</dt>
-          <dd class="col-sm-9">{{ student.school_no or "—" }}</dd>
+          <dt class="col-4 text-muted">Okul No</dt>
+          <dd class="col-8">{{ student.school_no or '—' }}</dd>
 
-          <dt class="col-sm-3">Ekleyen</dt>
-          <dd class="col-sm-9">{{ student.added_by or "—" }}</dd>
+          <dt class="col-4 text-muted">Fakülte</dt>
+          <dd class="col-8">{{ student.faculty or '—' }}</dd>
 
-          <dt class="col-sm-3">Kayıt Tarihi</dt>
-          <dd class="col-sm-9">
+          <dt class="col-4 text-muted">Bölüm</dt>
+          <dd class="col-8">{{ student.department or '—' }}</dd>
+
+          <dt class="col-4 text-muted">Ekleyen</dt>
+          <dd class="col-8">{{ student.added_by or '—' }}</dd>
+
+          <dt class="col-4 text-muted">Kayıt Tarihi</dt>
+          <dd class="col-8">
             {% if student.created_at %}
-              {{ student.created_at.strftime("%d.%m.%Y %H:%M") }}
+              {{ student.created_at.strftime('%d.%m.%Y %H:%M') }}
             {% else %}
               —
             {% endif %}
           </dd>
         </dl>
 
-        <div class="mt-4 d-flex justify-content-between">
-          <a href="{{ url_for('edit_student', id=student.id) }}" class="btn btn-outline-primary btn-sm">
-            <i class="bi bi-pencil-square me-1"></i> Düzenle
+        <div class="d-flex justify-content-between mt-3">
+          <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> Listeye Dön
           </a>
-          <form method="POST" action="{{ url_for('delete_student', id=student.id) }}" onsubmit="return confirm('Öğrenci silinsin mi?');">
-            <button type="submit" class="btn btn-outline-danger btn-sm">
-              <i class="bi bi-trash me-1"></i> Sil
-            </button>
-          </form>
+          <div class="d-flex gap-2">
+            <a href="{{ url_for('edit_student', id=student.id) }}" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-pencil-square me-1"></i>Düzenle
+            </a>
+            <form method="POST" action="{{ url_for('delete_student', id=student.id) }}"
+                  onsubmit="return confirm('Bu öğrenciyi silmek istediğine emin misin?');">
+              <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
         </div>
+      </div>
+
+      <div class="glass p-3 small">
+        <div class="fw-semibold mb-2">Durum</div>
+        <p class="text-muted mb-0">
+          Durum etiketi, öğrencinin probleminin çözülüp çözülmediğini takip etmek için kullanılır.
+          Notlar ise süreç içindeki ayrıntıları kaydetmek içindir.
+        </p>
       </div>
     </div>
 
-    <!-- Notlar & Durum -->
-    <div class="col-lg-4">
-      <div class="glass p-3 mb-3">
-        <h2 class="h6 mb-3">Durum / Not Ekle</h2>
+    <div class="col-lg-7">
+      <div class="glass p-4 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h2 class="h6 mb-0">Problem / Not Ekle</h2>
+        </div>
+
         <form method="POST" action="{{ url_for('view_student', id=student.id) }}">
           <div class="mb-2">
+            <label class="form-label small">Problem / Açıklama</label>
+            <textarea name="note" rows="3" class="form-control"
+                      placeholder="Yeni problem, durum güncellemesi veya süreç notu..."></textarea>
+          </div>
+          <div class="mb-3">
             <label class="form-label small">Durum</label>
-            <select name="status" class="form-select form-select-sm">
-              <option value="cozulmedi" {{ "selected" if student.status=="cozulmedi" else "" }}>Çözülmedi</option>
-              <option value="cozuldu" {{ "selected" if student.status=="cozuldu" else "" }}>Çözüldü</option>
+            <select name="status" class="form-select form-select-sm" style="max-width: 220px;">
+              <option value="cozulmedi" {% if student.status!='cozuldu' %}selected{% endif %}>Çözülmedi</option>
+              <option value="cozuldu"   {% if student.status=='cozuldu' %}selected{% endif %}>Çözüldü</option>
             </select>
           </div>
-          <div class="mb-2">
-            <label class="form-label small">Yeni Not</label>
-            <textarea name="note" rows="3" class="form-control form-control-sm" placeholder="Görüşme notu, yapılacaklar vb."></textarea>
+          <div class="d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="bi bi-plus-circle me-1"></i>Kaydet
+            </button>
           </div>
-          <button class="btn btn-primary btn-sm w-100">
-            <i class="bi bi-save me-1"></i> Kaydet
-          </button>
         </form>
       </div>
 
-      <div class="glass p-3">
-        <h2 class="h6 mb-3">Notlar</h2>
+      <div class="glass p-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h2 class="h6 mb-0">Not Geçmişi</h2>
+          <span class="badge bg-light text-dark note-badge">
+            Toplam {{ notes|length }} kayıt
+          </span>
+        </div>
+
         {% if notes %}
-          <div class="vstack gap-2">
+          <div class="list-group list-group-flush">
             {% for n in notes %}
-              <div class="border rounded p-2 small bg-light-subtle">
-                <div class="d-flex justify-content-between mb-1">
-                  <span class="fw-semibold">{{ n.author or "Sistem" }}</span>
-                  <span class="text-muted">
-                    {% if n.created_at %}{{ n.created_at.strftime("%d.%m.%Y %H:%M") }}{% endif %}
-                  </span>
+              <div class="list-group-item px-0">
+                <div class="d-flex justify-content-between small mb-1">
+                  <div class="fw-semibold">
+                    {{ n.author or 'Sistem' }}
+                  </div>
+                  <div class="text-muted">
+                    {% if n.created_at %}
+                      {{ n.created_at.strftime('%d.%m.%Y %H:%M') }}
+                    {% endif %}
+                  </div>
                 </div>
-                <div class="mb-1">{{ n.text }}</div>
-                <div class="text-end">
+                <div class="small">{{ n.text|replace('\n','<br>')|safe }}</div>
+                <div class="mt-1">
                   <form method="POST" action="{{ url_for('delete_note', note_id=n.id) }}"
-                        onsubmit="return confirm('Bu not silinsin mi?');">
-                    <button type="submit" class="btn btn-outline-danger btn-xs btn-sm py-0 px-2">
-                      <i class="bi bi-trash"></i>
+                        onsubmit="return confirm('Bu notu silmek istediğine emin misin?');">
+                    <button type="submit" class="btn btn-link btn-sm text-danger p-0 small">
+                      <i class="bi bi-trash"></i> Notu sil
                     </button>
                   </form>
                 </div>
@@ -129,11 +176,12 @@
             {% endfor %}
           </div>
         {% else %}
-          <div class="text-muted small">Henüz not yok.</div>
+          <p class="text-muted small mb-0">Henüz not eklenmemiş.</p>
         {% endif %}
       </div>
     </div>
   </div>
 </div>
+
 </body>
 </html>

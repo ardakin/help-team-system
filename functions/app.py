@@ -7,12 +7,14 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
     LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 )
+from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired
 from sqlalchemy import text, func, or_
 from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # --------------------------------------------------------
 # ENV
@@ -39,20 +41,85 @@ if DATABASE_URL.startswith("postgresql+psycopg2://") and "sslmode=" not in DATAB
     DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
 
 # --------------------------------------------------------
-# FLASK APP
+# 🔥 FLASK APP
 # --------------------------------------------------------
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 
-# SADE config – cookie ayarlarına dokunma
-app.config["SECRET_KEY"] = SECRET_KEY
+app.wsgi_app = ProxyFix(
+    app.wsgi_app,
+    x_for=1,
+    x_proto=1,
+    x_host=1,
+    x_prefix=1,
+)
+
+IN_CLOUD = bool(os.getenv("FIREBASE_CONFIG"))
+
+if IN_CLOUD:
+    app.config.update(
+        SECRET_KEY=os.environ.get("SECRET_KEY", "cloud-secret"),
+        SESSION_COOKIE_SECURE=True,
+        REMEMBER_COOKIE_SECURE=True,
+        SESSION_COOKIE_SAMESITE="None",
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_PATH="/",
+    )
+else:
+    app.config.update(
+        SECRET_KEY=os.environ.get("SECRET_KEY", "local-dev-key"),
+        SESSION_COOKIE_SECURE=False,
+        REMEMBER_COOKIE_SECURE=False,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_PATH="/",
+    )
+
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+# 🔴 BUNLAR MODEL SINIFLARINDAN ÖNCE GELECEK
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
+# -------------------------------
+# Modeller
+# -------------------------------
+class User(UserMixin, db.Model):
+    __tablename__ = "users"
+
+    id       = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    # Parola TEXT -> uzun hash'ler için
+    password = db.Column(db.Text, nullable=False)
+
+
+class Student(db.Model):
+    __tablename__ = "student"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(150), nullable=False)
+    phone      = db.Column(db.String(30))
+    school_no  = db.Column(db.String(30))
+    added_by   = db.Column(db.String(80))
+    status     = db.Column(db.String(20), default="cozulmedi")  # 'cozuldu' | 'cozulmedi'
+    department = db.Column(db.String(200))
+    faculty    = db.Column(db.String(200))
+    problem    = db.Column(db.Text)  # öğrencinin ana problemi / talebi
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class StudentNote(db.Model):
+    __tablename__ = "student_note"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    text       = db.Column(db.Text, nullable=False)
+    author     = db.Column(db.String(80))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    
 # -------------------------------
 # Fakülte -> Bölümler
 # -------------------------------
@@ -206,10 +273,12 @@ class Student(db.Model):
     phone      = db.Column(db.String(30))
     school_no  = db.Column(db.String(30))
     added_by   = db.Column(db.String(80))
-    status     = db.Column(db.String(20), default="cozulmedi")
+    status     = db.Column(db.String(20), default="cozulmedi")  # 'cozuldu'|'cozulmedi'
     department = db.Column(db.String(200))
     faculty    = db.Column(db.String(200))
+    problem    = db.Column(db.Text)  # ✅ öğrencinin ana sorunu
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 
 class StudentNote(db.Model):
     __tablename__ = "student_note"
@@ -331,13 +400,13 @@ def add_student():
         department = (request.form.get("department") or "").strip()
         faculty    = (request.form.get("faculty") or "").strip()
         status     = request.form.get("status", "cozulmedi")
-        note_text  = (request.form.get("note") or "").strip()   # ✅ yeni alan
+        problem    = (request.form.get("problem") or "").strip()  # ✅ yeni
+        note_text  = (request.form.get("note") or "").strip()     # ilk not
 
         if not name:
             flash("İsim zorunlu.", "danger")
             return render_template("add_student.html", faculties=FACULTY_DEPARTMENTS)
 
-        # Önce öğrenciyi oluştur
         s = Student(
             name=name,
             phone=phone or None,
@@ -345,18 +414,14 @@ def add_student():
             department=department or None,
             faculty=faculty or None,
             status=status if status in ("cozuldu", "cozulmedi") else "cozulmedi",
+            problem=problem or None,
             added_by=current_user.username,
         )
         db.session.add(s)
-        db.session.commit()   # s.id oluşsun
+        db.session.commit()
 
-        # Eğer ilk not girildiyse, not tablosuna ekle
         if note_text:
-            n = StudentNote(
-                student_id=s.id,
-                text=note_text,
-                author=current_user.username,
-            )
+            n = StudentNote(student_id=s.id, text=note_text, author=current_user.username)
             db.session.add(n)
             db.session.commit()
 
@@ -393,20 +458,31 @@ def view_student(id):
 @login_required
 def edit_student(id):
     s = Student.query.get_or_404(id)
+
     if request.method == "POST":
         s.name       = request.form.get("name", s.name)
         s.phone      = request.form.get("phone", s.phone)
         s.school_no  = request.form.get("school_no", s.school_no)
         s.department = request.form.get("department", s.department)
         s.faculty    = request.form.get("faculty", s.faculty)
-        new_status   = request.form.get("status", s.status)
+
+        # Yeni eklediğimiz problem alanı
+        s.problem    = request.form.get("problem", s.problem)
+
+        new_status = request.form.get("status", s.status)
         if new_status in ("cozuldu", "cozulmedi"):
             s.status = new_status
+
         db.session.commit()
         flash("Öğrenci güncellendi.", "success")
         return redirect(url_for("view_student", id=id))
 
-    return render_template("edit_student.html", student=s, faculties=FACULTY_DEPARTMENTS)
+    # <-- Burası fonksiyonun içi, indent *bir tab/4 boşluk* olacak
+    return render_template(
+        "edit_student.html",
+        student=s,
+        faculties=FACULTY_DEPARTMENTS
+    )
 
 @app.route("/student/<int:id>/delete", methods=["POST"])
 @login_required
@@ -490,20 +566,26 @@ def migrate_all():
     driver = db.engine.url.get_backend_name()  # 'postgresql' ya da 'sqlite'
 
     stmts = []
+
+    # users.password -> TEXT (hashler uzun olursa patlamasın)
     stmts.append("ALTER TABLE users ALTER COLUMN password TYPE TEXT")
 
     if driver.startswith("postgresql"):
+        # Postgres için IF NOT EXISTS kullanabiliyoruz
         stmts += [
             "ALTER TABLE student ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'cozulmedi'",
             "ALTER TABLE student ADD COLUMN IF NOT EXISTS department VARCHAR(200)",
             "ALTER TABLE student ADD COLUMN IF NOT EXISTS faculty VARCHAR(200)",
+            "ALTER TABLE student ADD COLUMN IF NOT EXISTS problem TEXT",
             "ALTER TABLE student ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()",
         ]
     else:
+        # SQLite'ta IF NOT EXISTS yok, o yüzden try/except ile geçeceğiz
         stmts += [
             "ALTER TABLE student ADD COLUMN status VARCHAR(20) DEFAULT 'cozulmedi'",
             "ALTER TABLE student ADD COLUMN department VARCHAR(200)",
             "ALTER TABLE student ADD COLUMN faculty VARCHAR(200)",
+            "ALTER TABLE student ADD COLUMN problem TEXT",
             "ALTER TABLE student ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         ]
 
@@ -512,16 +594,21 @@ def migrate_all():
             try:
                 conn.execute(text(s))
             except Exception as e:
+                # Kolon zaten varsa vs. burada loglayıp devam ediyoruz
                 print(f"[migrate_all] {s} -> {e}")
 
     return "OK: migrate_all", 200
+
 
 # -------------------------------
 # LOCAL ÇALIŞTIRMA
 # -------------------------------
 if __name__ == "__main__":
     with app.app_context():
+        # Localde tablo yoksa oluştur
         db.create_all()
+
+        # Postgres kullanıyorsan eski şemalarda password kolonunu TEXT'e zorla
         try:
             if db.engine.url.get_backend_name().startswith("postgresql"):
                 with db.engine.begin() as conn:
@@ -529,9 +616,14 @@ if __name__ == "__main__":
         except Exception:
             pass
 
+        # Admin hesabı yoksa oluştur
         if not User.query.filter_by(username="admin").first():
-            db.session.add(User(username="admin",
-                                password=generate_password_hash("Admin123!")))
+            db.session.add(
+                User(
+                    username="admin",
+                    password=generate_password_hash("Admin123!")
+                )
+            )
             db.session.commit()
             print("✅ Admin oluşturuldu: admin / Admin123!")
 
