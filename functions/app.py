@@ -78,48 +78,45 @@ else:
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# 🔴 BUNLAR MODEL SINIFLARINDAN ÖNCE GELECEK
+# --------------------------------------------------------
+# DB + Login
+# --------------------------------------------------------
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
-# -------------------------------
-# Modeller
-# -------------------------------
+# --------------------------------------------------------
+# MODELLER
+# --------------------------------------------------------
 class User(UserMixin, db.Model):
     __tablename__ = "users"
-
     id       = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    # Parola TEXT -> uzun hash'ler için
-    password = db.Column(db.Text, nullable=False)
+    password = db.Column(db.Text, nullable=False)  # uzun hash için TEXT
 
 
 class Student(db.Model):
     __tablename__ = "student"
-
     id         = db.Column(db.Integer, primary_key=True)
     name       = db.Column(db.String(150), nullable=False)
     phone      = db.Column(db.String(30))
     school_no  = db.Column(db.String(30))
     added_by   = db.Column(db.String(80))
-    status     = db.Column(db.String(20), default="cozulmedi")  # 'cozuldu' | 'cozulmedi'
+    status     = db.Column(db.String(20), default="cozulmedi")   # 'cozuldu' | 'cozulmedi'
     department = db.Column(db.String(200))
     faculty    = db.Column(db.String(200))
-    problem    = db.Column(db.Text)  # öğrencinin ana problemi / talebi
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    problem    = db.Column(db.Text)                              # öğrencinin ana sorunu
+    created_at = db.Column(db.DateTime, default=datetime.utcnow) # import datetime at top
 
 
 class StudentNote(db.Model):
     __tablename__ = "student_note"
-
     id         = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
     text       = db.Column(db.Text, nullable=False)
     author     = db.Column(db.String(80))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    
 # -------------------------------
 # Fakülte -> Bölümler
 # -------------------------------
@@ -256,37 +253,6 @@ FACULTY_DEPARTMENTS = {
         "BİYOMEDİKAL CİHAZ TEKNOLOJİLERİ",
     ],
 }
-
-# -------------------------------
-# MODELLER
-# -------------------------------
-class User(UserMixin, db.Model):
-    __tablename__ = "users"
-    id       = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.Text, nullable=False)  # uzun hash için TEXT
-
-class Student(db.Model):
-    __tablename__ = "student"
-    id         = db.Column(db.Integer, primary_key=True)
-    name       = db.Column(db.String(150), nullable=False)
-    phone      = db.Column(db.String(30))
-    school_no  = db.Column(db.String(30))
-    added_by   = db.Column(db.String(80))
-    status     = db.Column(db.String(20), default="cozulmedi")  # 'cozuldu'|'cozulmedi'
-    department = db.Column(db.String(200))
-    faculty    = db.Column(db.String(200))
-    problem    = db.Column(db.Text)  # ✅ öğrencinin ana sorunu
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-
-class StudentNote(db.Model):
-    __tablename__ = "student_note"
-    id         = db.Column(db.Integer, primary_key=True)
-    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
-    text       = db.Column(db.Text, nullable=False)
-    author     = db.Column(db.String(80))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # -------------------------------
 # LOGIN MANAGER
