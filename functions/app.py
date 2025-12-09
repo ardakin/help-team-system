@@ -55,20 +55,21 @@ app.wsgi_app = ProxyFix(
     x_prefix=1,
 )
 
-# Ortam tespiti: Firebase/Cloud'da FIREBASE_CONFIG var
+# Ortam tespiti: Firebase / Cloud
 IN_CLOUD = bool(os.getenv("FIREBASE_CONFIG"))
 
-# Temel cookie config – önce genel kural:
 if IN_CLOUD:
+    # Cloud genel default
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "cloud-secret"),
-        SESSION_COOKIE_SECURE=True,       # sadece HTTPS
+        SESSION_COOKIE_SECURE=True,
         REMEMBER_COOKIE_SECURE=True,
-        SESSION_COOKIE_SAMESITE="None",   # proxy zincirinde sorun çıkmasın
+        SESSION_COOKIE_SAMESITE="None",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_PATH="/",
     )
 else:
+    # Lokal geliştirme
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "local-dev-key"),
         SESSION_COOKIE_SECURE=False,
@@ -78,19 +79,20 @@ else:
         SESSION_COOKIE_PATH="/",
     )
 
-# 🔴 ÖNEMLİ: web.app üzerinden geliyorsak, cookie’yi daha da gevşet (loop kırma hack’i)
+# 🔴 web.app üzerinden geliyorsak cookie’yi gevşet → login loop’u kırmak için
 @app.before_request
 def _relax_cookies_for_webapp():
     host = request.host or ""
     if host.endswith(".web.app"):
-        # Web app için, local gibi davran:
         app.config.update(
-            SESSION_COOKIE_SECURE=False,      # browser'a göre sorun değil, HTTPS zaten
+            SESSION_COOKIE_SECURE=False,
             REMEMBER_COOKIE_SECURE=False,
-            SESSION_COOKIE_SAMESITE="Lax",    # None yerine klasik Lax
+            SESSION_COOKIE_SAMESITE="Lax",
         )
 
-# DB ayarları
+# --------------------------------------------------------
+# DB / LoginManager
+# --------------------------------------------------------
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -98,15 +100,11 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
-# --------------------------------------------------------
-# MODELLER
-# --------------------------------------------------------
 class User(UserMixin, db.Model):
     __tablename__ = "users"
     id       = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.Text, nullable=False)  # uzun hash için TEXT
-
+    password = db.Column(db.Text, nullable=False)
 
 class Student(db.Model):
     __tablename__ = "student"
@@ -115,12 +113,11 @@ class Student(db.Model):
     phone      = db.Column(db.String(30))
     school_no  = db.Column(db.String(30))
     added_by   = db.Column(db.String(80))
-    status     = db.Column(db.String(20), default="cozulmedi")   # 'cozuldu' | 'cozulmedi'
+    status     = db.Column(db.String(20), default="cozulmedi")
     department = db.Column(db.String(200))
     faculty    = db.Column(db.String(200))
-    problem    = db.Column(db.Text)                              # öğrencinin ana sorunu
-    created_at = db.Column(db.DateTime, default=datetime.utcnow) # import datetime at top
-
+    problem    = db.Column(db.Text)  # yeni alan
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class StudentNote(db.Model):
     __tablename__ = "student_note"
@@ -129,6 +126,7 @@ class StudentNote(db.Model):
     text       = db.Column(db.Text, nullable=False)
     author     = db.Column(db.String(80))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 
 # -------------------------------
 # Fakülte -> Bölümler
