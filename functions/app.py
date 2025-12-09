@@ -56,34 +56,27 @@ app.wsgi_app = ProxyFix(
 )
 
 # Cloud ortam tespiti
-IN_CLOUD = "firebase" in os.getenv("K_SERVICE", "").lower()
+IN_CLOUD = bool(os.getenv("FIREBASE_CONFIG"))
 
 if IN_CLOUD:
-    # Cloud Run + Firebase Hosting
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "cloud-secret"),
-
-        SESSION_COOKIE_NAME="session",
         SESSION_COOKIE_SECURE=True,
         REMEMBER_COOKIE_SECURE=True,
         SESSION_COOKIE_SAMESITE="None",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_PATH="/",
-        SESSION_COOKIE_DOMAIN=None,
     )
 else:
-    # Lokal geliştirme
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "local-dev-key"),
-
-        SESSION_COOKIE_NAME="session",
-        SESSION_COOKIE_SECURE=False,
+        SESSION_COOKIE_SECURE=False,      # HTTP için böyle kalacak
         REMEMBER_COOKIE_SECURE=False,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_PATH="/",
-        SESSION_COOKIE_DOMAIN=None,
     )
+
 
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
