@@ -4,26 +4,33 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Öğrenci Yönetim Sistemi • Giriş</title>
+
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
   <style>
     body {
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
+
+      /* DAHA AÇIK MAVİ, DASHBOARD İLE UYUMLU */
       background:
-        radial-gradient(circle at top, #1d4ed8 0, transparent 55%),
-        radial-gradient(circle at bottom, #4f46e5 0, #020617 55%);
+        radial-gradient(circle at 40% 0%, #3b82f6 0%, transparent 60%),
+        radial-gradient(circle at bottom, #6366f1 0%, #0f172a 70%);
       color: #0f172a;
     }
+
     .auth-card {
-      background: rgba(248, 250, 252, 0.96);
+      background: rgba(255, 255, 255, 0.90);
       border-radius: 22px;
-      box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35);
-      backdrop-filter: blur(18px);
-      border: 1px solid rgba(148, 163, 184, 0.4);
+      padding: 2.5rem;
+      box-shadow: 0 25px 60px rgba(15, 23, 42, 0.28);
+      backdrop-filter: blur(22px);
+      border: 1px solid rgba(148, 163, 184, 0.35);
     }
+
     .brand-pill {
       display: inline-flex;
       align-items: center;
@@ -35,64 +42,100 @@
       text-transform: uppercase;
       letter-spacing: .08em;
     }
+
     .form-control,
     .form-control:focus {
       border-radius: 12px;
+      box-shadow: none;
     }
+
+    .alert-custom {
+      border-radius: 12px;
+      border: 1px solid #ef4444 !important;
+      background: #fee2e2 !important;
+      color: #991b1b !important;
+      font-size: .82rem;
+    }
+
+    .input-group-text {
+      background: transparent;
+      border-right: 0;
+    }
+
+    .password-wrapper {
+      position: relative;
+    }
+
+    .toggle-pass {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      color: #475569;
+    }
+
     .btn-primary {
       border-radius: 999px;
       padding-inline: 1.5rem;
-    }
-    .hint {
-      font-size: .8rem;
-      color: #64748b;
+      font-weight: 600;
     }
   </style>
 </head>
+
 <body>
   <div class="container px-3">
     <div class="row justify-content-center">
       <div class="col-md-6 col-lg-4">
-        <div class="auth-card p-4 p-md-5">
+        <div class="auth-card">
+
           <div class="mb-3">
             <span class="brand-pill text-primary-emphasis">
               <i class="bi bi-shield-lock-fill"></i>
               Yönetici Girişi
             </span>
           </div>
-          <h1 class="h4 fw-semibold mb-1">Öğrenci Yönetim Sistemi</h1>
-          <p class="hint mb-4">
-            Sadece yetkili kullanıcılar giriş yapabilir.
-          </p>
 
+          <h1 class="h4 fw-semibold mb-1">Öğrenci Yönetim Sistemi</h1>
+          <p class="text-secondary small mb-4">Sadece yetkili kullanıcılar giriş yapabilir.</p>
+
+          <!-- FLASH MESAJLARI -->
           {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
               {% for category, message in messages %}
-                <div class="alert alert-{{ category }} py-2 small mb-2">
-                  {{ message }}
+                <div class="alert alert-custom mb-3">
+                  <i class="bi bi-exclamation-circle me-1"></i> {{ message }}
                 </div>
               {% endfor %}
             {% endif %}
           {% endwith %}
 
           <form method="POST" action="{{ url_for('login') }}" novalidate>
+
+            <!-- Kullanıcı Adı -->
             <div class="mb-3">
               <label class="form-label small fw-semibold">Kullanıcı Adı</label>
               <div class="input-group">
-                <span class="input-group-text bg-transparent border-end-0">
+                <span class="input-group-text">
                   <i class="bi bi-person"></i>
                 </span>
                 <input type="text" name="username" class="form-control border-start-0" placeholder="admin" required>
               </div>
             </div>
 
+            <!-- Şifre + Göster/Gizle -->
             <div class="mb-3">
               <label class="form-label small fw-semibold">Şifre</label>
-              <div class="input-group">
-                <span class="input-group-text bg-transparent border-end-0">
-                  <i class="bi bi-key"></i>
-                </span>
-                <input type="password" name="password" class="form-control border-start-0" placeholder="••••••••" required>
+
+              <div class="password-wrapper">
+                <div class="input-group">
+                  <span class="input-group-text">
+                    <i class="bi bi-key"></i>
+                  </span>
+                  <input type="password" id="password" name="password" class="form-control border-start-0" placeholder="••••••••" required>
+                </div>
+
+                <i class="bi bi-eye-slash toggle-pass" id="togglePassword"></i>
               </div>
             </div>
 
@@ -102,9 +145,25 @@
               </button>
             </div>
           </form>
+
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Şifre Göster/Gizle Script -->
+  <script>
+    const toggle = document.getElementById("togglePassword");
+    const password = document.getElementById("password");
+
+    toggle.addEventListener("click", () => {
+      const type = password.getAttribute("type") === "password" ? "text" : "password";
+      password.setAttribute("type", type);
+
+      toggle.classList.toggle("bi-eye");
+      toggle.classList.toggle("bi-eye-slash");
+    });
+  </script>
+
 </body>
 </html>
