@@ -46,6 +46,7 @@ if DATABASE_URL.startswith("postgresql+psycopg2://") and "sslmode=" not in DATAB
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 
+# Reverse proxy (Firebase Hosting + Cloud Run) için:
 app.wsgi_app = ProxyFix(
     app.wsgi_app,
     x_for=1,
@@ -54,14 +55,16 @@ app.wsgi_app = ProxyFix(
     x_prefix=1,
 )
 
+# Ortam tespiti: Firebase/Cloud'da FIREBASE_CONFIG var
 IN_CLOUD = bool(os.getenv("FIREBASE_CONFIG"))
 
+# Temel cookie config – önce genel kural:
 if IN_CLOUD:
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "cloud-secret"),
-        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_SECURE=True,       # sadece HTTPS
         REMEMBER_COOKIE_SECURE=True,
-        SESSION_COOKIE_SAMESITE="None",
+        SESSION_COOKIE_SAMESITE="None",   # proxy zincirinde sorun çıkmasın
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_PATH="/",
     )
@@ -75,12 +78,22 @@ else:
         SESSION_COOKIE_PATH="/",
     )
 
+# 🔴 ÖNEMLİ: web.app üzerinden geliyorsak, cookie’yi daha da gevşet (loop kırma hack’i)
+@app.before_request
+def _relax_cookies_for_webapp():
+    host = request.host or ""
+    if host.endswith(".web.app"):
+        # Web app için, local gibi davran:
+        app.config.update(
+            SESSION_COOKIE_SECURE=False,      # browser'a göre sorun değil, HTTPS zaten
+            REMEMBER_COOKIE_SECURE=False,
+            SESSION_COOKIE_SAMESITE="Lax",    # None yerine klasik Lax
+        )
+
+# DB ayarları
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# --------------------------------------------------------
-# DB + Login
-# --------------------------------------------------------
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
@@ -533,11 +546,12 @@ def migrate_all():
 
     stmts = []
 
-    # users.password -> TEXT (hashler uzun olursa patlamasın)
-    stmts.append("ALTER TABLE users ALTER COLUMN password TYPE TEXT")
+    # users.password -> TEXT (Postgres için; SQLite zaten TEXT)
+    if driver.startswith("postgresql"):
+        stmts.append("ALTER TABLE users ALTER COLUMN password TYPE TEXT")
 
     if driver.startswith("postgresql"):
-        # Postgres için IF NOT EXISTS kullanabiliyoruz
+        # Postgres: IF NOT EXISTS var
         stmts += [
             "ALTER TABLE student ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'cozulmedi'",
             "ALTER TABLE student ADD COLUMN IF NOT EXISTS department VARCHAR(200)",
@@ -546,7 +560,7 @@ def migrate_all():
             "ALTER TABLE student ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()",
         ]
     else:
-        # SQLite'ta IF NOT EXISTS yok, o yüzden try/except ile geçeceğiz
+        # SQLite: IF NOT EXISTS yok; aynı alter iki kere çalışırsa hata verebilir, o yüzden try/except var
         stmts += [
             "ALTER TABLE student ADD COLUMN status VARCHAR(20) DEFAULT 'cozulmedi'",
             "ALTER TABLE student ADD COLUMN department VARCHAR(200)",
@@ -560,10 +574,10 @@ def migrate_all():
             try:
                 conn.execute(text(s))
             except Exception as e:
-                # Kolon zaten varsa vs. burada loglayıp devam ediyoruz
                 print(f"[migrate_all] {s} -> {e}")
 
     return "OK: migrate_all", 200
+
 
 
 # -------------------------------
