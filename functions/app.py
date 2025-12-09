@@ -56,20 +56,22 @@ app.wsgi_app = ProxyFix(
 )
 
 # Ortam tespiti: Firebase / Cloud
-IN_CLOUD = bool(os.getenv("FIREBASE_CONFIG"))
+IN_CLOUD = "firebase" in os.getenv("K_SERVICE", "").lower(
 
 if IN_CLOUD:
-    # Cloud genel default
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "cloud-secret"),
+
         SESSION_COOKIE_SECURE=True,
         REMEMBER_COOKIE_SECURE=True,
+
         SESSION_COOKIE_SAMESITE="None",
         SESSION_COOKIE_HTTPONLY=True,
+
         SESSION_COOKIE_PATH="/",
+        SESSION_COOKIE_DOMAIN=None,   # 🔥 BUNU ZORUNLU BIRAK domain ayarı
     )
 else:
-    # Lokal geliştirme
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "local-dev-key"),
         SESSION_COOKIE_SECURE=False,
@@ -78,6 +80,7 @@ else:
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_PATH="/",
     )
+
 
 # 🔴 web.app üzerinden geliyorsak cookie’yi gevşet → login loop’u kırmak için
 @app.before_request
