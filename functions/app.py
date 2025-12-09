@@ -328,7 +328,12 @@ def health():
 @app.route("/whoami")
 @login_required
 def whoami():
+    print("WHOAMI:", current_user.is_authenticated, getattr(current_user, "username", None))
     return f"✅ {current_user.username}", 200
+
+@app.route("/debug")
+def debug():
+    return {"cookies": dict(request.cookies)}
 
 @app.route("/dashboard")
 @login_required
@@ -521,10 +526,6 @@ def __routes():
         methods = ",".join(sorted(m for m in r.methods if m not in ("HEAD","OPTIONS")))
         lines.append(f"{r.rule:35s} -> {methods}  ({r.endpoint})")
     return "<pre>" + "\n".join(sorted(lines)) + "</pre>"
-
-@app.route("/debug")
-def debug():
-    return {"cookies": dict(request.cookies)}
 
 # -------------------------------
 # Migration / bakım endpoint'leri
