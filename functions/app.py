@@ -46,7 +46,7 @@ if DATABASE_URL.startswith("postgresql+psycopg2://") and "sslmode=" not in DATAB
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 
-# Reverse proxy (Firebase Hosting + Cloud Run) için:
+# Firebase Hosting -> Cloud Run reverse proxy
 app.wsgi_app = ProxyFix(
     app.wsgi_app,
     x_for=1,
@@ -55,52 +55,45 @@ app.wsgi_app = ProxyFix(
     x_prefix=1,
 )
 
-# Ortam tespiti: Firebase / Cloud
+# Cloud ortam tespiti
 IN_CLOUD = "firebase" in os.getenv("K_SERVICE", "").lower()
 
 if IN_CLOUD:
+    # Cloud Run + Firebase Hosting
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "cloud-secret"),
 
+        SESSION_COOKIE_NAME="session",
         SESSION_COOKIE_SECURE=True,
         REMEMBER_COOKIE_SECURE=True,
-
         SESSION_COOKIE_SAMESITE="None",
         SESSION_COOKIE_HTTPONLY=True,
-
         SESSION_COOKIE_PATH="/",
-        SESSION_COOKIE_DOMAIN=None,   # 🔥 BUNU ZORUNLU BIRAK domain ayarı
+        SESSION_COOKIE_DOMAIN=None,
     )
 else:
+    # Lokal geliştirme
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "local-dev-key"),
+
+        SESSION_COOKIE_NAME="session",
         SESSION_COOKIE_SECURE=False,
         REMEMBER_COOKIE_SECURE=False,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_PATH="/",
+        SESSION_COOKIE_DOMAIN=None,
     )
 
-# 🔴 web.app üzerinden geliyorsak cookie’yi gevşet → login loop’u kırmak için
-@app.before_request
-def _relax_cookies_for_webapp():
-    host = request.host or ""
-    if host.endswith(".web.app"):
-        app.config.update(
-            SESSION_COOKIE_SECURE=False,
-            REMEMBER_COOKIE_SECURE=False,
-            SESSION_COOKIE_SAMESITE="Lax",
-        )
-
-# --------------------------------------------------------
-# DB / LoginManager
-# --------------------------------------------------------
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
-login_manager = LoginManager(app)
+
+login_manager = LoginManager()
+login_manager.init_app(app)
 login_manager.login_view = "login"
+login_manager.session_protection = None  # 🔥 paranoid korumayı kapat
 
 class User(UserMixin, db.Model):
     __tablename__ = "users"
@@ -118,7 +111,7 @@ class Student(db.Model):
     status     = db.Column(db.String(20), default="cozulmedi")
     department = db.Column(db.String(200))
     faculty    = db.Column(db.String(200))
-    problem    = db.Column(db.Text)  # yeni alan
+    problem    = db.Column(db.Text)  # öğrencinin ana sorunu
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class StudentNote(db.Model):
@@ -272,8 +265,11 @@ FACULTY_DEPARTMENTS = {
 # -------------------------------
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
-
+    try:
+        return User.query.get(int(user_id))
+    except Exception as e:
+        print("USER LOADER ERROR:", e)
+        return None
 # -------------------------------
 # FORMLAR
 # -------------------------------
@@ -291,23 +287,31 @@ class LoginForm(FlaskForm):
 def login():
     form = LoginForm()
 
-    if form.validate_on_submit():
-        username = form.username.data.strip()
-        password = form.password.data
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = (request.form.get("password") or "").strip()
 
         print("LOGIN TRY:", username)
 
         user = User.query.filter_by(username=username).first()
 
-        if user and check_password_hash(user.password, password):
-            login_user(user, remember=True)
-            print("LOGIN SUCCESS for", user.username)
+        if not user:
+            flash("Kullanıcı bulunamadı!", "danger")
+            return redirect(url_for("login"))
 
-            next_url = request.args.get("next")
-            return redirect(next_url or url_for("dashboard"))
+        if not check_password_hash(user.password, password):
+            flash("Şifre yanlış!", "danger")
+            return redirect(url_for("login"))
 
-        # Hatalıysa tek mesaj
-        flash("Kullanıcı adı veya şifre hatalı.", "danger")
+        # 🔥 REMEMBER YOK, SADECE SESSION
+        login_user(user, remember=False, fresh=True)
+        print("LOGIN SUCCESS for", user.username)
+
+        next_url = request.args.get("next")
+        if next_url:
+            return redirect(next_url)
+
+        return redirect(url_for("dashboard"))
 
     return render_template("login.html", form=form)
 
